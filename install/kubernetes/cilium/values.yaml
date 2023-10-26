@@ -3212,6 +3212,8 @@ authentication:
       # -- SPIRE connection timeout
       connectionTimeout: 30s
 
+eksMode: false
+
 defaultPolicies:
   enabled: false
   remove: false

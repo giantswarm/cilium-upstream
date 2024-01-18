@@ -153,7 +153,7 @@ rollOutCiliumPods: false
 
 # -- Agent container image.
 image:
-  registry: docker.io
+  registry: gsoci.azurecr.io
   override: ~
   repository: "giantswarm/cilium"
   tag: "v1.15.0"

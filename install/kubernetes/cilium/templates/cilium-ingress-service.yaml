@@ -18,11 +18,15 @@ spec:
   - name: http
     port: 80
     protocol: TCP
+    {{- if .Values.ingressController.service.insecureNodePort }}
     nodePort: {{ .Values.ingressController.service.insecureNodePort }}
+    {{- end }}
   - name: https
     port: 443
     protocol: TCP
+    {{- if .Values.ingressController.service.secureNodePort }}
     nodePort: {{ .Values.ingressController.service.secureNodePort }}
+    {{- end }}
   type: {{ .Values.ingressController.service.type }}
   {{- if semverCompare ">=1.24-0" .Capabilities.KubeVersion.Version -}}
   {{- if .Values.ingressController.service.loadBalancerClass }}

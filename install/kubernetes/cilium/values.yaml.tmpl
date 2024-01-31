@@ -464,7 +464,7 @@ bpf:
   neighMax: 524288
 
   # -- Configure the maximum number of entries in endpoint policy map (per endpoint).
-  policyMapMax: 16384
+  policyMapMax: 65536
 
   # -- (float64) Configure auto-sizing for all BPF maps based on available memory.
   # ref: https://docs.cilium.io/en/stable/network/ebpf/maps/
@@ -544,7 +544,7 @@ cni:
   #  - flannel
   #  - generic-veth
   #  - portmap
-  chainingMode: ""
+  chainingMode: "none"
 
   # -- A CNI network name in to which the Cilium plugin should be added as a chained plugin.
   # This will cause the agent to watch for a CNI network with this network name. When it is
@@ -2435,7 +2435,7 @@ operator:
   # -- Taint nodes where Cilium is scheduled but not running. This prevents pods
   # from being scheduled to nodes where Cilium is not the default CNI provider.
   # @default -- same as removeNodeTaints
-  setNodeTaints: false
+  setNodeTaints: true
 
   # -- Set Node condition NetworkUnavailable to 'false' with the reason
   # 'CiliumIsUp' for nodes that have a healthy Cilium pod.

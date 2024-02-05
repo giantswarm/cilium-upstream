@@ -6,7 +6,7 @@
 # Cilium will not change critical values to ensure continued operation
 # This flag is not required for new installations.
 # For example: '1.7', '1.8', '1.9'
-upgradeCompatibility: null
+upgradeCompatibility: ""
 debug:
   # -- Enable debug logging
   enabled: false
@@ -27,7 +27,7 @@ rbac:
   # -- Enable creation of Resource-Based Access Control configuration.
   create: true
 # -- Configure image pull secrets for pulling container images
-imagePullSecrets:
+imagePullSecrets: []
 # - name: "image-pull-secret"
 
 # -- (string) Kubernetes config path
@@ -45,11 +45,11 @@ k8sServicePort: ""
 k8sClientRateLimit:
   # -- (int) The sustained request rate in requests per second.
   # @default -- 5 for k8s up to 1.26. 10 for k8s version 1.27+
-  qps:
+  qps: 5
   # -- (int) The burst request rate in requests per second.
   # The rate limiter will allow short bursts with a higher rate.
   # @default -- 10 for k8s up to 1.26. 20 for k8s version 1.27+
-  burst:
+  burst: 10
 cluster:
   # -- Name of the cluster. Only required for Cluster Mesh and mutual authentication with SPIRE.
   name: default
@@ -636,9 +636,9 @@ ingressController:
   # -- IngressLBAnnotations are the annotation and label prefixes, which are used to filter annotations and/or labels to propagate from Ingress to the Load Balancer service
   ingressLBAnnotationPrefixes: ['lbipam.cilium.io', 'service.beta.kubernetes.io', 'service.kubernetes.io', 'cloud.google.com']
   # -- Default secret namespace for ingresses without .spec.tls[].secretName set.
-  defaultSecretNamespace:
+  defaultSecretNamespace: ""
   # -- Default secret name for ingresses without .spec.tls[].secretName set.
-  defaultSecretName:
+  defaultSecretName: ""
   # -- SecretsNamespace is the namespace in which envoy SDS will retrieve TLS secrets from.
   secretsNamespace:
     # -- Create secrets namespace for Ingress.
@@ -1100,9 +1100,9 @@ hubble:
       enabled: false
       # -- Minimum number/percentage of pods that should remain scheduled.
       # When it's set, maxUnavailable must be disabled by `maxUnavailable: null`
-      minAvailable: null
+      # minAvailable: null
       # -- Maximum number/percentage of pods that may be made unavailable
-      maxUnavailable: 1
+      maxUnavailable: "1"
     # -- The priority class to use for hubble-relay
     priorityClassName: ""
     # -- Configure termination grace period for hubble relay Deployment.
@@ -1328,9 +1328,9 @@ hubble:
       enabled: false
       # -- Minimum number/percentage of pods that should remain scheduled.
       # When it's set, maxUnavailable must be disabled by `maxUnavailable: null`
-      minAvailable: null
+      # minAvailable: null
       # -- Maximum number/percentage of pods that may be made unavailable
-      maxUnavailable: 1
+      maxUnavailable: "1"
     # -- Affinity for hubble-ui
     affinity: {}
     # -- Pod topology spread constraints for hubble-ui
@@ -1352,7 +1352,7 @@ hubble:
     updateStrategy:
       type: RollingUpdate
       rollingUpdate:
-        maxUnavailable: 1
+        maxUnavailable: "1"
     # -- Security context to be added to Hubble UI pods
     securityContext:
       runAsUser: 1001
@@ -1697,7 +1697,7 @@ nodePort:
 policyEnforcementMode: "default"
 # -- policyCIDRMatchMode is a list of entities that may be selected by CIDR selector.
 # The possible value is "nodes".
-policyCIDRMatchMode:
+policyCIDRMatchMode: []
 pprof:
   # -- Enable pprof for cilium-agent
   enabled: false
@@ -2096,9 +2096,9 @@ etcd:
     enabled: false
     # -- Minimum number/percentage of pods that should remain scheduled.
     # When it's set, maxUnavailable must be disabled by `maxUnavailable: null`
-    minAvailable: null
+    # minAvailable: null
     # -- Maximum number/percentage of pods that may be made unavailable
-    maxUnavailable: 1
+    maxUnavailable: "1"
   # -- cilium-etcd-operator resource limits & requests
   # ref: https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/
   resources: {}
@@ -2118,7 +2118,7 @@ etcd:
     type: RollingUpdate
     rollingUpdate:
       maxSurge: 1
-      maxUnavailable: 1
+      maxUnavailable: "1"
   # -- If etcd is behind a k8s service set this option to true so that Cilium
   # does the service translation automatically without requiring a DNS to be
   # running.
@@ -2223,9 +2223,9 @@ operator:
     enabled: false
     # -- Minimum number/percentage of pods that should remain scheduled.
     # When it's set, maxUnavailable must be disabled by `maxUnavailable: null`
-    minAvailable: null
+    # minAvailable: null
     # -- Maximum number/percentage of pods that may be made unavailable
-    maxUnavailable: 1
+    maxUnavailable: "1"
   # -- cilium-operator resource limits & requests
   # ref: https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/
   resources: {}
@@ -2446,9 +2446,9 @@ preflight:
     enabled: false
     # -- Minimum number/percentage of pods that should remain scheduled.
     # When it's set, maxUnavailable must be disabled by `maxUnavailable: null`
-    minAvailable: null
+    # minAvailable: null
     # -- Maximum number/percentage of pods that may be made unavailable
-    maxUnavailable: 1
+    maxUnavailable: "1"
   # -- preflight resource limits & requests
   # ref: https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/
   resources: {}
@@ -2612,9 +2612,9 @@ clustermesh:
       # For EKS LoadBalancer, use annotation service.beta.kubernetes.io/aws-load-balancer-internal: 0.0.0.0/0
       annotations: {}
       # -- The externalTrafficPolicy of service used for apiserver access.
-      externalTrafficPolicy:
+      externalTrafficPolicy: "Cluster"
       # -- The internalTrafficPolicy of service used for apiserver access.
-      internalTrafficPolicy:
+      internalTrafficPolicy: "Cluster"
     # -- Number of replicas run for the clustermesh-apiserver deployment.
     replicas: 1
     # -- lifecycle setting for the apiserver container
@@ -2644,9 +2644,9 @@ clustermesh:
       enabled: false
       # -- Minimum number/percentage of pods that should remain scheduled.
       # When it's set, maxUnavailable must be disabled by `maxUnavailable: null`
-      minAvailable: null
+      # minAvailable: null
       # -- Maximum number/percentage of pods that may be made unavailable
-      maxUnavailable: 1
+      maxUnavailable: "1"
     # -- Resource requests and limits for the clustermesh-apiserver
     resources: {}
     #   requests:
@@ -2681,7 +2681,7 @@ clustermesh:
     updateStrategy:
       type: RollingUpdate
       rollingUpdate:
-        maxUnavailable: 1
+        maxUnavailable: "1"
     # -- The priority class to use for clustermesh-apiserver
     priorityClassName: ""
     tls:
@@ -3011,7 +3011,7 @@ authentication:
             # -- Access mode of the SPIRE server data storage
             accessMode: ReadWriteOnce
             # -- StorageClass of the SPIRE server data storage
-            storageClass: null
+            storageClass: ""
           # -- Security context to be added to spire server pods.
           # SecurityContext holds pod-level security attributes and common container settings.
           # ref: https://kubernetes.io/docs/tasks/configure-pod-container/security-context/#set-the-security-context-for-a-pod

@@ -244,6 +244,7 @@
 /.github/workflows/*ipsec*.yaml @cilium/ipsec @cilium/github-sec @cilium/ci-structure
 /.github/workflows/*ingress*.yaml @cilium/sig-servicemesh @cilium/github-sec @cilium/ci-structure
 /.github/workflows/*scale*.yaml @cilium/sig-scalability @cilium/github-sec @cilium/ci-structure
+/.github/workflows/*perf*.yaml @cilium/sig-scalability @cilium/github-sec @cilium/ci-structure
 /.gitignore @cilium/tophat
 /.golangci.yaml @cilium/ci-structure
 /.mailmap @cilium/tophat
@@ -536,6 +537,7 @@ Makefile* @cilium/build
 /plugins/cilium-docker/ @cilium/docker
 /README.rst @cilium/docs-structure
 /SECURITY.md @cilium/contributing
+/SECURITY-INSIGHTS.yml @cilium/security
 /stable.txt @cilium/tophat
 /test/ @cilium/ci-structure
 /test/Makefile* @cilium/ci-structure @cilium/build

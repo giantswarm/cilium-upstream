@@ -818,14 +818,6 @@ const (
 	// endpoints that are no longer alive and healthy.
 	EndpointGCInterval = "endpoint-gc-interval"
 
-	// This option turns off switching from full pods informer to node's local pods informer
-	// when CEP CRD is disabled and kvstore is used.
-	// Switching from full pods informer to node's local pods informer is considered default behaviour
-	// and this option allows us to change it back to having full pods informer all the time.
-	// It's meant to be mitigation only in case if endpoint synchronization from kvstore has some bugs
-	// and we actually need to watch all pods all the time.
-	LegacyTurnOffK8sEventHandover = "legacy-turn-off-k8s-event-handover"
-
 	// LoopbackIPv4 is the address to use for service loopback SNAT
 	LoopbackIPv4 = "ipv4-service-loopback-address"
 
@@ -1167,15 +1159,6 @@ const (
 	// Flag to enable BGP control plane features
 	EnableBGPControlPlane = "enable-bgp-control-plane"
 
-	// EnvoySecretsNamespace is the namespace having secrets used by CEC.
-	EnvoySecretsNamespace = "envoy-secrets-namespace"
-
-	// IngressSecretsNamespace is the namespace having tls secrets used by CEC, originating from Ingress controller.
-	IngressSecretsNamespace = "ingress-secrets-namespace"
-
-	// GatewayAPISecretsNamespace is the namespace having tls secrets used by CEC, originating from Gateway API.
-	GatewayAPISecretsNamespace = "gateway-api-secrets-namespace"
-
 	// EnableRuntimeDeviceDetection is the name of the option to enable detection
 	// of new and removed datapath devices during the agent runtime.
 	EnableRuntimeDeviceDetection = "enable-runtime-device-detection"
@@ -1438,10 +1421,6 @@ type DaemonConfig struct {
 
 	// RestoreState enables restoring the state from previous running daemons.
 	RestoreState bool
-
-	// EnableHostIPRestore enables restoring the host IPs based on state
-	// left behind by previous Cilium runs.
-	EnableHostIPRestore bool
 
 	KeepConfig bool // Keep configuration of existing endpoints when starting up.
 
@@ -1766,7 +1745,6 @@ type DaemonConfig struct {
 	KVStoreOpt                    map[string]string
 	LabelPrefixFile               string
 	Labels                        []string
-	LegacyTurnOffK8sEventHandover bool
 	LogDriver                     []string
 	LogOpt                        map[string]string
 	Logstash                      bool
@@ -2443,7 +2421,6 @@ var (
 		IPv6ClusterAllocCIDR:            defaults.IPv6ClusterAllocCIDR,
 		IPv6ClusterAllocCIDRBase:        defaults.IPv6ClusterAllocCIDRBase,
 		IPAMDefaultIPPool:               defaults.IPAMDefaultIPPool,
-		EnableHostIPRestore:             defaults.EnableHostIPRestore,
 		EnableHealthChecking:            defaults.EnableHealthChecking,
 		EnableEndpointHealthChecking:    defaults.EnableEndpointHealthChecking,
 		EnableHealthCheckLoadBalancerIP: defaults.EnableHealthCheckLoadBalancerIP,
@@ -3084,7 +3061,6 @@ func (c *DaemonConfig) Populate(vp *viper.Viper) {
 	c.K8sRequireIPv4PodCIDR = vp.GetBool(K8sRequireIPv4PodCIDRName)
 	c.K8sRequireIPv6PodCIDR = vp.GetBool(K8sRequireIPv6PodCIDRName)
 	c.K8sServiceCacheSize = uint(vp.GetInt(K8sServiceCacheSize))
-	c.LegacyTurnOffK8sEventHandover = vp.GetBool(LegacyTurnOffK8sEventHandover)
 	c.K8sSyncTimeout = vp.GetDuration(K8sSyncTimeoutName)
 	c.AllocatorListTimeout = vp.GetDuration(AllocatorListTimeoutName)
 	c.K8sWatcherEndpointSelector = vp.GetString(K8sWatcherEndpointSelector)
@@ -3537,17 +3513,6 @@ func (c *DaemonConfig) Populate(vp *viper.Viper) {
 
 	// Enable BGP control plane features
 	c.EnableBGPControlPlane = vp.GetBool(EnableBGPControlPlane)
-
-	// Envoy secrets namespaces to watch
-	params := []string{EnvoySecretsNamespace, IngressSecretsNamespace, GatewayAPISecretsNamespace}
-	var nsList = make([]string, 0, len(params))
-	for _, param := range params {
-		ns := vp.GetString(param)
-		if ns != "" {
-			nsList = append(nsList, ns)
-		}
-	}
-	c.EnvoySecretNamespaces = nsList
 
 	// To support K8s NetworkPolicy
 	c.EnableK8sNetworkPolicy = vp.GetBool(EnableK8sNetworkPolicy)

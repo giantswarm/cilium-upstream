@@ -13,7 +13,7 @@
      - Type
      - Default
    * - :spelling:ignore:`MTU`
-     - Configure the underlying network MTU to overwrite auto-detected MTU.  This value doesn't change the host network interface MTU i.e. eth0 or ens0. It changes the MTU for cilium_net@cilium_host, cilium_host@cilium_net, cilium_vxlan and lxc_health interfaces.
+     - Configure the underlying network MTU to overwrite auto-detected MTU. This value doesn't change the host network interface MTU i.e. eth0 or ens0. It changes the MTU for cilium_net@cilium_host, cilium_host@cilium_net, cilium_vxlan and lxc_health interfaces.
      - int
      - ``0``
    * - :spelling:ignore:`affinity`
@@ -956,10 +956,6 @@
      - Enable transparent network encryption.
      - bool
      - ``false``
-   * - :spelling:ignore:`encryption.interface`
-     - Deprecated in favor of encryption.ipsec.interface. To be removed in 1.15. The interface to use for encrypted traffic. This option is only effective when encryption.type is set to ipsec.
-     - string
-     - ``""``
    * - :spelling:ignore:`encryption.ipsec.interface`
      - The interface to use for encrypted traffic.
      - string
@@ -967,7 +963,7 @@
    * - :spelling:ignore:`encryption.ipsec.keyFile`
      - Name of the key file inside the Kubernetes secret configured via secretName.
      - string
-     - ``""``
+     - ``"keys"``
    * - :spelling:ignore:`encryption.ipsec.keyRotationDuration`
      - Maximum duration of the IPsec key rotation. The previous key will be removed after that delay.
      - string
@@ -979,27 +975,15 @@
    * - :spelling:ignore:`encryption.ipsec.mountPath`
      - Path to mount the secret inside the Cilium pod.
      - string
-     - ``""``
+     - ``"/etc/ipsec"``
    * - :spelling:ignore:`encryption.ipsec.secretName`
      - Name of the Kubernetes secret containing the encryption keys.
      - string
-     - ``""``
-   * - :spelling:ignore:`encryption.keyFile`
-     - Deprecated in favor of encryption.ipsec.keyFile. To be removed in 1.15. Name of the key file inside the Kubernetes secret configured via secretName. This option is only effective when encryption.type is set to ipsec.
-     - string
-     - ``"keys"``
-   * - :spelling:ignore:`encryption.mountPath`
-     - Deprecated in favor of encryption.ipsec.mountPath. To be removed in 1.15. Path to mount the secret inside the Cilium pod. This option is only effective when encryption.type is set to ipsec.
-     - string
-     - ``"/etc/ipsec"``
+     - ``"cilium-ipsec-keys"``
    * - :spelling:ignore:`encryption.nodeEncryption`
      - Enable encryption for pure node to node traffic. This option is only effective when encryption.type is set to "wireguard".
      - bool
      - ``false``
-   * - :spelling:ignore:`encryption.secretName`
-     - Deprecated in favor of encryption.ipsec.secretName. To be removed in 1.15. Name of the Kubernetes secret containing the encryption keys. This option is only effective when encryption.type is set to ipsec.
-     - string
-     - ``"cilium-ipsec-keys"``
    * - :spelling:ignore:`encryption.strictMode`
      - Configure the WireGuard Pod2Pod strict mode.
      - object
@@ -1096,6 +1080,10 @@
      - Annotations to be added to all top-level cilium-envoy objects (resources under templates/cilium-envoy)
      - object
      - ``{}``
+   * - :spelling:ignore:`envoy.baseID`
+     - Set Envoy'--base-id' to use when allocating shared memory regions. Only needs to be changed if multiple Envoy instances will run on the same node and may have conflicts. Supported values: 0 - 4294967295. Defaults to '0'
+     - int
+     - ``0``
    * - :spelling:ignore:`envoy.connectTimeoutSeconds`
      - Time in seconds after which a TCP connection attempt times out
      - int
@@ -1143,7 +1131,7 @@
    * - :spelling:ignore:`envoy.image`
      - Envoy container image.
      - object
-     - ``{"digest":"sha256:debc09c066c11a756234ba3482f301e20ca0f99fd7f4a41fe01e49ca2fa9c50a","override":null,"pullPolicy":"Always","repository":"quay.io/cilium/cilium-envoy","tag":"v1.27.2-4366a60cb693c38ab1917d924f5b1d26f1e58b1e","useDigest":true}``
+     - ``{"digest":"sha256:a3eaf21675c6f1e375aa7f74d03893e0a69a036569ff04c77a1eae0380748b81","override":null,"pullPolicy":"Always","repository":"quay.io/cilium/cilium-envoy","tag":"v1.28.0-67a82649395fd783b2a79c0e78eba25af8c556a6","useDigest":true}``
    * - :spelling:ignore:`envoy.livenessProbe.failureThreshold`
      - failure threshold of liveness probe
      - int
@@ -2055,7 +2043,7 @@
    * - :spelling:ignore:`ingressController.ingressLBAnnotationPrefixes`
      - IngressLBAnnotations are the annotation and label prefixes, which are used to filter annotations and/or labels to propagate from Ingress to the Load Balancer service
      - list
-     - ``["service.beta.kubernetes.io","service.kubernetes.io","cloud.google.com"]``
+     - ``["lbipam.cilium.io","service.beta.kubernetes.io","service.kubernetes.io","cloud.google.com"]``
    * - :spelling:ignore:`ingressController.loadbalancerMode`
      - Default ingress load balancer mode Supported values: shared, dedicated For granular control, use the following annotations on the ingress resource ingress.cilium.io/loadbalancer-mode: shared
      - string
@@ -2183,7 +2171,15 @@
    * - :spelling:ignore:`k8s`
      - Configure Kubernetes specific configuration
      - object
-     - ``{}``
+     - ``{"requireIPv4PodCIDR":false,"requireIPv6PodCIDR":false}``
+   * - :spelling:ignore:`k8s.requireIPv4PodCIDR`
+     - requireIPv4PodCIDR enables waiting for Kubernetes to provide the PodCIDR range via the Kubernetes node resource
+     - bool
+     - ``false``
+   * - :spelling:ignore:`k8s.requireIPv6PodCIDR`
+     - requireIPv6PodCIDR enables waiting for Kubernetes to provide the PodCIDR range via the Kubernetes node resource
+     - bool
+     - ``false``
    * - :spelling:ignore:`k8sClientRateLimit`
      - Configure the client side rate limit for the agent and operator  If the amount of requests to the Kubernetes API server exceeds the configured rate limit, the agent and operator will start to throttle requests by delaying them until there is budget or the request times out.
      - object
@@ -2588,10 +2584,6 @@
      - Taint nodes where Cilium is scheduled but not running. This prevents pods from being scheduled to nodes where Cilium is not the default CNI provider.
      - string
      - same as removeNodeTaints
-   * - :spelling:ignore:`operator.skipCNPStatusStartupClean`
-     - Skip CNP node status clean up at operator startup.
-     - bool
-     - ``false``
    * - :spelling:ignore:`operator.skipCRDCreation`
      - Skip CRDs creation for cilium-operator
      - bool
@@ -2980,6 +2972,10 @@
      - Cilium agent update strategy
      - object
      - ``{"rollingUpdate":{"maxUnavailable":2},"type":"RollingUpdate"}``
+   * - :spelling:ignore:`upgradeCompatibility`
+     - upgradeCompatibility helps users upgrading to ensure that the configMap for Cilium will not change critical values to ensure continued operation This flag is not required for new installations. For example: '1.7', '1.8', '1.9'
+     - string
+     - ``nil``
    * - :spelling:ignore:`vtep.cidr`
      - A space separated list of VTEP device CIDRs, for example "1.1.1.0/24 1.1.2.0/24"
      - string

@@ -114,10 +114,6 @@ const (
 	// the agent and the CNI plugin processes
 	DeleteQueueLockfile = DeleteQueueDir + "/lockfile"
 
-	// EnableHostIPRestore controls whether the host IP should be restored
-	// from previous state automatically
-	EnableHostIPRestore = true
-
 	// BPFFSRoot is the default path where BPFFS should be mounted
 	BPFFSRoot = "/sys/fs/bpf"
 
@@ -340,8 +336,6 @@ const (
 	// ConntrackGCStartingInterval is the default starting interval for
 	// connection tracking garbage collection
 	ConntrackGCStartingInterval = 5 * time.Minute
-
-	LegacyTurnOffK8sEventHandover = false
 
 	// LoopbackIPv4 is the default address for service loopback
 	LoopbackIPv4 = "169.254.42.1"

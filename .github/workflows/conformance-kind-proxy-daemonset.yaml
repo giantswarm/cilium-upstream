@@ -57,7 +57,7 @@ jobs:
           CILIUM_INSTALL_DEFAULTS="${{ steps.default_vars.outputs.cilium_install_defaults }} \
             --helm-set=hubble.relay.enabled=true
             --helm-set=cni.chainingMode=portmap \
-            --helm-set-string=kubeProxyReplacement=strict \
+            --helm-set-string=kubeProxyReplacement=true \
             --helm-set=loadBalancer.l7.backend=envoy \
             --helm-set=tls.secretsBackend=k8s \
             --helm-set=envoy.enabled=true \
@@ -68,7 +68,7 @@ jobs:
           echo sha=${{ steps.default_vars.outputs.sha }} >> $GITHUB_OUTPUT
 
       - name: Install Cilium CLI
-        uses: cilium/cilium-cli@4aa6347c532075df28027772fa1e4ec2f7415341 # v0.15.20
+        uses: cilium/cilium-cli@d79f56bc2f2b2dbb2d5e41696c2f3aec0ebd3eb0 # v0.15.21
         with:
           repository: ${{ env.CILIUM_CLI_RELEASE_REPO }}
           release-version: ${{ env.CILIUM_CLI_VERSION }}

@@ -10,9 +10,7 @@ import (
 	"github.com/cilium/cilium/api/v1/models"
 	"github.com/cilium/cilium/pkg/allocator"
 	"github.com/cilium/cilium/pkg/clustermesh/common"
-	"github.com/cilium/cilium/pkg/clustermesh/types"
 	cmtypes "github.com/cilium/cilium/pkg/clustermesh/types"
-	"github.com/cilium/cilium/pkg/hive"
 	"github.com/cilium/cilium/pkg/hive/cell"
 	"github.com/cilium/cilium/pkg/ipcache"
 	"github.com/cilium/cilium/pkg/k8s"
@@ -36,7 +34,7 @@ type Configuration struct {
 	common.Config
 
 	// ClusterInfo is the id/name of the local cluster. This is used for logging and metrics
-	ClusterInfo types.ClusterInfo
+	ClusterInfo cmtypes.ClusterInfo
 
 	// NodeKeyCreator is the function used to create node instances as
 	// nodes are being discovered in remote clusters
@@ -63,7 +61,7 @@ type Configuration struct {
 
 	// ConfigValidationMode defines whether the CiliumClusterConfig is always
 	// expected to be exposed by remote clusters.
-	ConfigValidationMode types.ValidationMode `optional:"true"`
+	ConfigValidationMode cmtypes.ValidationMode `optional:"true"`
 
 	// IPCacheWatcherExtraOpts returns extra options for watching ipcache entries.
 	IPCacheWatcherExtraOpts IPCacheWatcherOptsFn `optional:"true"`
@@ -114,7 +112,7 @@ type ClusterMesh struct {
 
 // NewClusterMesh creates a new remote cluster cache based on the
 // provided configuration
-func NewClusterMesh(lifecycle hive.Lifecycle, c Configuration) *ClusterMesh {
+func NewClusterMesh(lifecycle cell.Lifecycle, c Configuration) *ClusterMesh {
 	if c.ClusterInfo.ID == 0 || c.ClusterMeshConfig == "" {
 		return nil
 	}

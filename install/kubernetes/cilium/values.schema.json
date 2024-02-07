@@ -107,7 +107,21 @@
                                                     "type": "object"
                                                 },
                                                 "image": {
-                                                    "type": "string"
+                                                    "type": "object",
+                                                    "properties": {
+                                                        "override": {
+                                                            "type": "string"
+                                                        },
+                                                        "pullPolicy": {
+                                                            "type": "string"
+                                                        },
+                                                        "repository": {
+                                                            "type": "string"
+                                                        },
+                                                        "tag": {
+                                                            "type": "string"
+                                                        }
+                                                    }
                                                 },
                                                 "labels": {
                                                     "type": "object"
@@ -190,12 +204,26 @@
                                                             "type": "string"
                                                         },
                                                         "storageClass": {
-                                                            "type": "null"
+                                                            "type": "string"
                                                         }
                                                     }
                                                 },
                                                 "image": {
-                                                    "type": "string"
+                                                    "type": "object",
+                                                    "properties": {
+                                                        "override": {
+                                                            "type": "string"
+                                                        },
+                                                        "pullPolicy": {
+                                                            "type": "string"
+                                                        },
+                                                        "repository": {
+                                                            "type": "string"
+                                                        },
+                                                        "tag": {
+                                                            "type": "string"
+                                                        }
+                                                    }
                                                 },
                                                 "initContainers": {
                                                     "type": "array"
@@ -239,7 +267,7 @@
                                     }
                                 },
                                 "serverAddress": {
-                                    "type": "null"
+                                    "type": "string"
                                 },
                                 "trustDomain": {
                                     "type": "string"
@@ -309,7 +337,7 @@
             "type": "object",
             "properties": {
                 "authMapMax": {
-                    "type": "null"
+                    "type": "integer"
                 },
                 "autoMount": {
                     "type": "object",
@@ -320,13 +348,13 @@
                     }
                 },
                 "ctAnyMax": {
-                    "type": "null"
+                    "type": "integer"
                 },
                 "ctTcpMax": {
-                    "type": "null"
+                    "type": "integer"
                 },
                 "hostLegacyRouting": {
-                    "type": "null"
+                    "type": "boolean"
                 },
                 "lbExternalClusterIP": {
                     "type": "boolean"
@@ -335,10 +363,10 @@
                     "type": "integer"
                 },
                 "mapDynamicSizeRatio": {
-                    "type": "null"
+                    "type": "number"
                 },
                 "masquerade": {
-                    "type": "null"
+                    "type": "boolean"
                 },
                 "monitorAggregation": {
                     "type": "string"
@@ -350,10 +378,10 @@
                     "type": "string"
                 },
                 "natMax": {
-                    "type": "null"
+                    "type": "integer"
                 },
                 "neighMax": {
-                    "type": "null"
+                    "type": "integer"
                 },
                 "policyMapMax": {
                     "type": "integer"
@@ -365,10 +393,10 @@
                     "type": "string"
                 },
                 "tproxy": {
-                    "type": "null"
+                    "type": "boolean"
                 },
                 "vlanBypass": {
-                    "type": "null"
+                    "type": "array"
                 }
             }
         },
@@ -399,7 +427,7 @@
                     "type": "object",
                     "properties": {
                         "override": {
-                            "type": "null"
+                            "type": "string"
                         },
                         "pullPolicy": {
                             "type": "string"
@@ -509,7 +537,7 @@
                                     "type": "object",
                                     "properties": {
                                         "override": {
-                                            "type": "null"
+                                            "type": "string"
                                         },
                                         "pullPolicy": {
                                             "type": "string"
@@ -557,7 +585,7 @@
                                     "type": "string"
                                 },
                                 "override": {
-                                    "type": "null"
+                                    "type": "string"
                                 },
                                 "pullPolicy": {
                                     "type": "string"
@@ -595,7 +623,7 @@
                                             "type": "string"
                                         },
                                         "override": {
-                                            "type": "null"
+                                            "type": "string"
                                         },
                                         "pullPolicy": {
                                             "type": "string"
@@ -685,10 +713,10 @@
                                                     "type": "string"
                                                 },
                                                 "metricRelabelings": {
-                                                    "type": "null"
+                                                    "type": "array"
                                                 },
                                                 "relabelings": {
-                                                    "type": "null"
+                                                    "type": "array"
                                                 }
                                             }
                                         },
@@ -702,10 +730,10 @@
                                                     "type": "string"
                                                 },
                                                 "metricRelabelings": {
-                                                    "type": "null"
+                                                    "type": "array"
                                                 },
                                                 "relabelings": {
-                                                    "type": "null"
+                                                    "type": "array"
                                                 }
                                             }
                                         },
@@ -713,10 +741,10 @@
                                             "type": "object"
                                         },
                                         "metricRelabelings": {
-                                            "type": "null"
+                                            "type": "array"
                                         },
                                         "relabelings": {
-                                            "type": "null"
+                                            "type": "array"
                                         }
                                     }
                                 }
@@ -740,10 +768,7 @@
                                     "type": "boolean"
                                 },
                                 "maxUnavailable": {
-                                    "type": "integer"
-                                },
-                                "minAvailable": {
-                                    "type": "null"
+                                    "type": "string"
                                 }
                             }
                         },
@@ -772,10 +797,10 @@
                                     "type": "object"
                                 },
                                 "externalTrafficPolicy": {
-                                    "type": "null"
+                                    "type": "string"
                                 },
                                 "internalTrafficPolicy": {
-                                    "type": "null"
+                                    "type": "string"
                                 },
                                 "nodePort": {
                                     "type": "integer"
@@ -921,10 +946,10 @@
                     "type": "string"
                 },
                 "chainingMode": {
-                    "type": "null"
+                    "type": "string"
                 },
                 "chainingTarget": {
-                    "type": "null"
+                    "type": "string"
                 },
                 "confFileMountPath": {
                     "type": "string"
@@ -984,13 +1009,13 @@
             "type": "object",
             "properties": {
                 "allowedConfigOverrides": {
-                    "type": "null"
+                    "type": "string"
                 },
                 "blockedConfigOverrides": {
-                    "type": "null"
+                    "type": "string"
                 },
                 "configSources": {
-                    "type": "null"
+                    "type": "string"
                 },
                 "runPath": {
                     "type": "string"
@@ -1013,7 +1038,7 @@
                     "type": "string"
                 },
                 "namespace": {
-                    "type": "null"
+                    "type": "string"
                 }
             }
         },
@@ -1024,7 +1049,7 @@
                     "type": "boolean"
                 },
                 "verbose": {
-                    "type": "null"
+                    "type": "string"
                 }
             }
         },
@@ -1304,7 +1329,7 @@
                     "type": "integer"
                 },
                 "dnsPolicy": {
-                    "type": "null"
+                    "type": "string"
                 },
                 "enabled": {
                     "type": "boolean"
@@ -1340,7 +1365,7 @@
                             "type": "string"
                         },
                         "override": {
-                            "type": "null"
+                            "type": "string"
                         },
                         "pullPolicy": {
                             "type": "string"
@@ -1402,7 +1427,7 @@
                     "type": "object"
                 },
                 "priorityClassName": {
-                    "type": "null"
+                    "type": "string"
                 },
                 "prometheus": {
                     "type": "object",
@@ -1429,7 +1454,7 @@
                                     "type": "object"
                                 },
                                 "metricRelabelings": {
-                                    "type": "null"
+                                    "type": "array"
                                 },
                                 "relabelings": {
                                     "type": "array",
@@ -1592,7 +1617,7 @@
                     "type": "object",
                     "properties": {
                         "override": {
-                            "type": "null"
+                            "type": "string"
                         },
                         "pullPolicy": {
                             "type": "string"
@@ -1626,10 +1651,7 @@
                             "type": "boolean"
                         },
                         "maxUnavailable": {
-                            "type": "integer"
-                        },
-                        "minAvailable": {
-                            "type": "null"
+                            "type": "string"
                         }
                     }
                 },
@@ -1874,7 +1896,7 @@
                                     "type": "string"
                                 },
                                 "namespace": {
-                                    "type": "null"
+                                    "type": "string"
                                 }
                             }
                         },
@@ -1882,7 +1904,7 @@
                             "type": "boolean"
                         },
                         "enabled": {
-                            "type": "null"
+                            "type": "string"
                         },
                         "port": {
                             "type": "integer"
@@ -1906,7 +1928,7 @@
                                     "type": "object"
                                 },
                                 "metricRelabelings": {
-                                    "type": "null"
+                                    "type": "array"
                                 },
                                 "relabelings": {
                                     "type": "array",
@@ -1984,7 +2006,7 @@
                             }
                         },
                         "dialTimeout": {
-                            "type": "null"
+                            "type": "string"
                         },
                         "enabled": {
                             "type": "boolean"
@@ -2016,7 +2038,7 @@
                                     "type": "string"
                                 },
                                 "override": {
-                                    "type": "null"
+                                    "type": "string"
                                 },
                                 "pullPolicy": {
                                     "type": "string"
@@ -2056,10 +2078,7 @@
                                     "type": "boolean"
                                 },
                                 "maxUnavailable": {
-                                    "type": "integer"
-                                },
-                                "minAvailable": {
-                                    "type": "null"
+                                    "type": "string"
                                 }
                             }
                         },
@@ -2116,10 +2135,10 @@
                                             "type": "object"
                                         },
                                         "metricRelabelings": {
-                                            "type": "null"
+                                            "type": "array"
                                         },
                                         "relabelings": {
-                                            "type": "null"
+                                            "type": "array"
                                         }
                                     }
                                 }
@@ -2132,7 +2151,7 @@
                             "type": "object"
                         },
                         "retryTimeout": {
-                            "type": "null"
+                            "type": "string"
                         },
                         "rollOutPods": {
                             "type": "boolean"
@@ -2174,10 +2193,10 @@
                             }
                         },
                         "sortBufferDrainTimeout": {
-                            "type": "null"
+                            "type": "string"
                         },
                         "sortBufferLenMax": {
-                            "type": "null"
+                            "type": "integer"
                         },
                         "terminationGracePeriodSeconds": {
                             "type": "integer"
@@ -2246,7 +2265,7 @@
                     }
                 },
                 "skipUnknownCGroupIDs": {
-                    "type": "null"
+                    "type": "boolean"
                 },
                 "socketPath": {
                     "type": "string"
@@ -2321,7 +2340,7 @@
                                             "type": "string"
                                         },
                                         "override": {
-                                            "type": "null"
+                                            "type": "string"
                                         },
                                         "pullPolicy": {
                                             "type": "string"
@@ -2370,7 +2389,7 @@
                                             "type": "string"
                                         },
                                         "override": {
-                                            "type": "null"
+                                            "type": "string"
                                         },
                                         "pullPolicy": {
                                             "type": "string"
@@ -2451,10 +2470,7 @@
                                     "type": "boolean"
                                 },
                                 "maxUnavailable": {
-                                    "type": "integer"
-                                },
-                                "minAvailable": {
-                                    "type": "null"
+                                    "type": "string"
                                 }
                             }
                         },
@@ -2569,7 +2585,7 @@
                     "type": "string"
                 },
                 "override": {
-                    "type": "null"
+                    "type": "string"
                 },
                 "pullPolicy": {
                     "type": "string"
@@ -2589,7 +2605,7 @@
             }
         },
         "imagePullSecrets": {
-            "type": "null"
+            "type": "array"
         },
         "ingressController": {
             "type": "object",
@@ -2598,10 +2614,10 @@
                     "type": "boolean"
                 },
                 "defaultSecretName": {
-                    "type": "null"
+                    "type": "string"
                 },
                 "defaultSecretNamespace": {
-                    "type": "null"
+                    "type": "string"
                 },
                 "enabled": {
                     "type": "boolean"
@@ -2636,28 +2652,28 @@
                     "type": "object",
                     "properties": {
                         "allocateLoadBalancerNodePorts": {
-                            "type": "null"
+                            "type": "boolean"
                         },
                         "annotations": {
                             "type": "object"
                         },
                         "insecureNodePort": {
-                            "type": "null"
+                            "type": "integer"
                         },
                         "labels": {
                             "type": "object"
                         },
                         "loadBalancerClass": {
-                            "type": "null"
+                            "type": "string"
                         },
                         "loadBalancerIP": {
-                            "type": "null"
+                            "type": "string"
                         },
                         "name": {
                             "type": "string"
                         },
                         "secureNodePort": {
-                            "type": "null"
+                            "type": "integer"
                         },
                         "type": {
                             "type": "string"
@@ -2714,10 +2730,10 @@
                             }
                         },
                         "externalAPILimitBurstSize": {
-                            "type": "null"
+                            "type": "integer"
                         },
                         "externalAPILimitQPS": {
-                            "type": "null"
+                            "type": "number"
                         }
                     }
                 }
@@ -2929,7 +2945,7 @@
                     "type": "object",
                     "properties": {
                         "override": {
-                            "type": "null"
+                            "type": "string"
                         },
                         "pullPolicy": {
                             "type": "string"
@@ -3101,7 +3117,7 @@
                             "type": "string"
                         },
                         "namespace": {
-                            "type": "null"
+                            "type": "string"
                         }
                     }
                 },
@@ -3151,7 +3167,7 @@
                             "type": "string"
                         },
                         "override": {
-                            "type": "null"
+                            "type": "string"
                         },
                         "pullPolicy": {
                             "type": "string"
@@ -3191,10 +3207,7 @@
                             "type": "boolean"
                         },
                         "maxUnavailable": {
-                            "type": "integer"
-                        },
-                        "minAvailable": {
-                            "type": "null"
+                            "type": "string"
                         }
                     }
                 },
@@ -3246,10 +3259,10 @@
                                     "type": "object"
                                 },
                                 "metricRelabelings": {
-                                    "type": "null"
+                                    "type": "array"
                                 },
                                 "relabelings": {
-                                    "type": "null"
+                                    "type": "array"
                                 }
                             }
                         }
@@ -3274,7 +3287,7 @@
                     "type": "boolean"
                 },
                 "setNodeTaints": {
-                    "type": "null"
+                    "type": "boolean"
                 },
                 "skipCNPStatusStartupClean": {
                     "type": "boolean"
@@ -3418,7 +3431,7 @@
                             "type": "string"
                         },
                         "override": {
-                            "type": "null"
+                            "type": "string"
                         },
                         "pullPolicy": {
                             "type": "string"
@@ -3452,10 +3465,7 @@
                             "type": "boolean"
                         },
                         "maxUnavailable": {
-                            "type": "integer"
-                        },
-                        "minAvailable": {
-                            "type": "null"
+                            "type": "string"
                         }
                     }
                 },
@@ -3541,7 +3551,7 @@
                             "type": "object"
                         },
                         "metricRelabelings": {
-                            "type": "null"
+                            "type": "array"
                         },
                         "relabelings": {
                             "type": "array",
@@ -3580,7 +3590,7 @@
                             "type": "boolean"
                         },
                         "port": {
-                            "type": "null"
+                            "type": "string"
                         }
                     }
                 },

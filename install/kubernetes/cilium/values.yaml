@@ -49,11 +49,11 @@ k8sServicePort: ""
 k8sClientRateLimit:
   # -- (int) The sustained request rate in requests per second.
   # @default -- 5 for k8s up to 1.26. 10 for k8s version 1.27+
-  qps:
+  qps: 10
   # -- (int) The burst request rate in requests per second.
   # The rate limiter will allow short bursts with a higher rate.
   # @default -- 10 for k8s up to 1.26. 20 for k8s version 1.27+
-  burst:
+  burst: 20
 
 cluster:
   # -- Name of the cluster. Only required for Cluster Mesh and mutual authentication with SPIRE.
@@ -1362,8 +1362,8 @@ hubble:
         # -- extra IP addresses added to certificate when its auto gen
         extraIpAddresses: []
         # DNS name used by the backend to connect to the relay
-        # This is a simple workaround as the relay certificates are currently hardcoded to 
-        # *.hubble-relay.cilium.io 
+        # This is a simple workaround as the relay certificates are currently hardcoded to
+        # *.hubble-relay.cilium.io
         # See https://github.com/cilium/cilium/pull/28709#discussion_r1371792546
         # For GKE Dataplane V2 this should be set to relay.kube-system.svc.cluster.local
         relayName: "ui.hubble-relay.cilium.io"
@@ -1723,7 +1723,7 @@ ipam:
     externalAPILimitQPS: 4.0
 
 # -- The api-rate-limit option can be used to overwrite individual settings of the default configuration for rate limiting calls to the Cilium Agent API
-apiRateLimit: ~
+apiRateLimit: ""
 
 # -- Configure the eBPF-based ip-masq-agent
 ipMasqAgent:
@@ -1970,7 +1970,7 @@ policyEnforcementMode: "default"
 
 # -- policyCIDRMatchMode is a list of entities that may be selected by CIDR selector.
 # The possible value is "nodes".
-policyCIDRMatchMode:
+policyCIDRMatchMode: []
 
 pprof:
   # -- Enable pprof for cilium-agent
@@ -3374,7 +3374,7 @@ authentication:
         existingNamespace: false
         # -- init container image of SPIRE agent and server
         initImage:
-          override: ~
+          override: ""
           repository: "docker.io/library/busybox"
           tag: "1.36.1"
           digest: "sha256:223ae047b1065bd069aac01ae3ac8088b3ca4a527827e283b85112f29385fb1b"
@@ -3384,7 +3384,7 @@ authentication:
         agent:
           # -- SPIRE agent image
           image:
-            override: ~
+            override: ""
             repository: "ghcr.io/spiffe/spire-agent"
             tag: "1.8.5"
             digest: "sha256:99405637647968245ff9fe215f8bd2bd0ea9807be9725f8bf19fe1b21471e52b"
@@ -3432,7 +3432,7 @@ authentication:
         server:
           # -- SPIRE server image
           image:
-            override: ~
+            override: ""
             repository: "ghcr.io/spiffe/spire-server"
             tag: "1.8.5"
             digest: "sha256:28269265882048dcf0fed32fe47663cd98613727210b8d1a55618826f9bf5428"

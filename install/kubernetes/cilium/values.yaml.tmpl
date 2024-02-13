@@ -46,11 +46,11 @@ k8sServicePort: ""
 k8sClientRateLimit:
   # -- (int) The sustained request rate in requests per second.
   # @default -- 5 for k8s up to 1.26. 10 for k8s version 1.27+
-  qps:
+  qps: 10
   # -- (int) The burst request rate in requests per second.
   # The rate limiter will allow short bursts with a higher rate.
   # @default -- 10 for k8s up to 1.26. 20 for k8s version 1.27+
-  burst:
+  burst: 20
 
 cluster:
   # -- Name of the cluster. Only required for Cluster Mesh and mutual authentication with SPIRE.
@@ -1359,8 +1359,8 @@ hubble:
         # -- extra IP addresses added to certificate when its auto gen
         extraIpAddresses: []
         # DNS name used by the backend to connect to the relay
-        # This is a simple workaround as the relay certificates are currently hardcoded to 
-        # *.hubble-relay.cilium.io 
+        # This is a simple workaround as the relay certificates are currently hardcoded to
+        # *.hubble-relay.cilium.io
         # See https://github.com/cilium/cilium/pull/28709#discussion_r1371792546
         # For GKE Dataplane V2 this should be set to relay.kube-system.svc.cluster.local
         relayName: "ui.hubble-relay.cilium.io"
@@ -1720,7 +1720,7 @@ ipam:
     externalAPILimitQPS: 4.0
 
 # -- The api-rate-limit option can be used to overwrite individual settings of the default configuration for rate limiting calls to the Cilium Agent API
-apiRateLimit: ~
+apiRateLimit: ""
 
 # -- Configure the eBPF-based ip-masq-agent
 ipMasqAgent:
@@ -1967,7 +1967,7 @@ policyEnforcementMode: "default"
 
 # -- policyCIDRMatchMode is a list of entities that may be selected by CIDR selector.
 # The possible value is "nodes".
-policyCIDRMatchMode:
+policyCIDRMatchMode: []
 
 pprof:
   # -- Enable pprof for cilium-agent
@@ -3371,7 +3371,7 @@ authentication:
         existingNamespace: false
         # -- init container image of SPIRE agent and server
         initImage:
-          override: ~
+          override: ""
           repository: "${SPIRE_INIT_REPO}"
           tag: "${SPIRE_INIT_VERSION}"
           digest: "${SPIRE_INIT_DIGEST}"
@@ -3381,7 +3381,7 @@ authentication:
         agent:
           # -- SPIRE agent image
           image:
-            override: ~
+            override: ""
             repository: "${SPIRE_AGENT_REPO}"
             tag: "${SPIRE_AGENT_VERSION}"
             digest: "${SPIRE_AGENT_DIGEST}"
@@ -3429,7 +3429,7 @@ authentication:
         server:
           # -- SPIRE server image
           image:
-            override: ~
+            override: ""
             repository: "${SPIRE_SERVER_REPO}"
             tag: "${SPIRE_SERVER_VERSION}"
             digest: "${SPIRE_SERVER_DIGEST}"

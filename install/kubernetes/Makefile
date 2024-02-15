@@ -24,7 +24,7 @@ CILIUM_CHART_REGEX := '\([vV]ersion:\) '$(VERSION_REGEX)
 
 DOCKER_RUN := $(CONTAINER_ENGINE) container run --rm \
 	--workdir /src/install/kubernetes \
-	--volume $(CURDIR)/../..:/src \
+	--volume $(CURDIR)/../..:/src:Z \
 	--user "$(shell id -u):$(shell id -g)"
 HELM_DOCS := $(DOCKER_RUN) $(HELM_TOOLBOX_IMAGE) helm-docs
 HELM := $(DOCKER_RUN) $(HELM_TOOLBOX_IMAGE) helm

@@ -156,7 +156,7 @@ image:
   registry: gsoci.azurecr.io
   override: ""
   repository: "giantswarm/cilium"
-  tag: "v1.15.0"
+  tag: "v1.15.1"
   pullPolicy: "IfNotPresent"
   # cilium-digest
   digest: ""
@@ -1232,7 +1232,7 @@ hubble:
     image:
       override: ""
       repository: "giantswarm/hubble-relay"
-      tag: "v1.15.0"
+      tag: "v1.15.1"
        # hubble-relay-digest
       digest: ""
       useDigest: false
@@ -1469,8 +1469,8 @@ hubble:
       image:
         override: ""
         repository: "giantswarm/hubble-ui-backend"
-        tag: "v0.12.3"
-        digest: "sha256:1cd84251cec46e20f9e839ee0afba9b51c8de59d35681234f701d7f42062f138"
+        tag: "v0.13.0"
+        digest: "sha256:1e7657d997c5a48253bb8dc91ecee75b63018d16ff5e5797e5af367336bc8803"
         useDigest: false
         pullPolicy: "IfNotPresent"
 
@@ -1508,8 +1508,8 @@ hubble:
       image:
         override: ""
         repository: "quay.io/cilium/hubble-ui"
-        tag: "v0.12.3"
-        digest: "sha256:e6b825302fc1e406b1305363fe0bcd1fdf95730b32c2b99a2b36dfa37bdaeec2"
+        tag: "v0.13.0"
+        digest: "sha256:7d663dc16538dd6e29061abd1047013a645e6e69c115e008bee9ea9fef9a6666"
         useDigest: false
         pullPolicy: "IfNotPresent"
 
@@ -2073,9 +2073,9 @@ envoy:
   image:
     override: ""
     repository: "quay.io/cilium/cilium-envoy"
-    tag: "v1.27.2-13f6142b9c02268b10d547c8b093ef16724538e3"
+    tag: "v1.27.3-713b673cccf1af661efd75ca20532336517ddcb9"
     pullPolicy: "IfNotPresent"
-    digest: "sha256:bf37c46d3d6bd5f51ff11d09de81671ced070e27912e080083c58a6d3fbb740f"
+    digest: "sha256:a811830c708296194eaf9cee6c1d22c5f8de3544b7eea6cbdfb810326522a4a2"
     useDigest: true
 
   # -- Additional containers added to the cilium Envoy DaemonSet.
@@ -2479,7 +2479,7 @@ operator:
   image:
     override: ""
     repository: "giantswarm/cilium-operator"
-    tag: "v1.15.0"
+    tag: "v1.15.1"
     # operator-generic-digest
     genericDigest: ""
     # operator-azure-digest
@@ -2774,7 +2774,7 @@ preflight:
   image:
     override: ""
     repository: "giantswarm/cilium"
-    tag: "v1.15.0"
+    tag: "v1.15.1"
     # cilium-digest
     digest: ""
     useDigest: false
@@ -2936,7 +2936,7 @@ clustermesh:
     image:
       override: ""
       repository: "giantswarm/cilium-clustermesh-apiserver"
-      tag: "v1.15.0"
+      tag: "v1.15.1"
       # clustermesh-apiserver-digest
       digest: ""
       useDigest: false

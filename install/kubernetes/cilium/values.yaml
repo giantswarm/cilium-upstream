@@ -1507,7 +1507,7 @@ hubble:
       # -- Hubble-ui frontend image.
       image:
         override: ""
-        repository: "giantswarm/cilium-hubble-ui"
+        repository: "giantswarm/hubble-ui"
         tag: "v0.13.0"
         digest: "sha256:7d663dc16538dd6e29061abd1047013a645e6e69c115e008bee9ea9fef9a6666"
         useDigest: false

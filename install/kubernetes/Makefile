@@ -22,10 +22,11 @@ VALUES_TMPL_FILE_NAME ?= *values.yaml.tmpl
 VERSION_REGEX := '[0-9]\+\.[0-9]\+\.[0-9]\+.*'
 CILIUM_CHART_REGEX := '\([vV]ersion:\) '$(VERSION_REGEX)
 
-DOCKER_RUN := $(CONTAINER_ENGINE) container run --rm \
+CONTAINER_RUN_ARGS ?= $(if $(filter ${CONTAINER_ENGINE}, podman), --userns=keep-id)
+
+DOCKER_RUN := $(CONTAINER_ENGINE) container run --rm ${CONTAINER_RUN_ARGS} \
 	--workdir /src/install/kubernetes \
 	--volume $(CURDIR)/../..:/src:z \
-	--userns=keep-id \
 	--user "$(shell id -u):$(shell id -g)"
 HELM_DOCS := $(DOCKER_RUN) $(HELM_TOOLBOX_IMAGE) helm-docs
 HELM := $(DOCKER_RUN) $(HELM_TOOLBOX_IMAGE) helm

@@ -34,7 +34,7 @@ export GOARCH ?= $(NATIVE_ARCH)
 
 INSTALL = install
 
-CONTAINER_ENGINE?=docker
+CONTAINER_ENGINE ?= $(if $(shell command -v podman), podman, docker)
 DOCKER_FLAGS?=
 DOCKER_BUILD_FLAGS?=
 

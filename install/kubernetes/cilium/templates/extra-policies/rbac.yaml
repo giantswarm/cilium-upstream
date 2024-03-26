@@ -1,4 +1,4 @@
-{{- if or .Values.extraPolicies.allowEgressToCoreDNS.enabled .Values.extraPolicies.allowEgressToProxy.enabled -}}
+{{- if or .Values.extraPolicies.allowEgressToCoreDNS.enabled .Values.extraPolicies.allowEgressToProxy.enabled .Values.extraPolicies.remove -}}
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:

@@ -1,3 +1,11 @@
+{{- $policiesToDelete = list }}
+{{- range $_, $ns := $.Values.extraPolicies.allowEgressToCoreDNS.namespaces }}
+{{- $policiesToDelete = append $policiesToDelete (printf "%s/%s" $ns "cilium-extra-policies-dns" }}
+{{- end }}
+{{- range $_, $ns := $.Values.extraPolicies.allowEgressToProxy.namespaces }}
+{{- $policiesToDelete = append $policiesToDelete (printf "%s/%s" $ns "cilium-extra-policies-proxy" }}
+{{- end }}
+
 {{- if or .Values.extraPolicies.allowEgressToCoreDNS.enabled .Values.extraPolicies.allowEgressToProxy.enabled .Values.extraPolicies.remove -}}
 apiVersion: batch/v1
 kind: Job
@@ -60,13 +68,14 @@ spec:
         - |
           set -o errexit ; set -o xtrace ; set -o nounset
 
-          kubectl \
 {{- if .Values.extraPolicies.remove }}
-            delete \
+          kubectl delete \
             --ignore-not-found \
+            {{- join $policiesToDelete " " }} 2>&1
 {{- else }}
+          kubectl \
             apply \
             --server-side=true --field-manager='kubectl-client-side-apply' --force-conflicts \
-{{- end }}
             -f /policies/ 2>&1
+{{- end }}
 {{- end -}}

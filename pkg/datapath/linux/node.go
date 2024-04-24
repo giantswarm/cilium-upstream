@@ -65,6 +65,7 @@ type linuxNodeHandler struct {
 	neighDiscoveryLinks  []netlink.Link
 	neighNextHopByNode4  map[nodeTypes.Identity]map[string]string // val = (key=link, value=string(net.IP))
 	neighNextHopByNode6  map[nodeTypes.Identity]map[string]string // val = (key=link, value=string(net.IP))
+	ipsecUpdateNeeded    map[nodeTypes.Identity]bool
 	// All three mappings below hold both IPv4 and IPv6 entries.
 	neighNextHopRefCount   counter.StringCounter
 	neighByNextHop         map[string]*netlink.Neigh // key = string(net.IP)
@@ -72,7 +73,7 @@ type linuxNodeHandler struct {
 
 	nodeMap nodemap.Map
 	// Pool of available IDs for nodes.
-	nodeIDs idpool.IDPool
+	nodeIDs *idpool.IDPool
 	// Node-scoped unique IDs for the nodes.
 	nodeIDsByIPs map[string]uint16
 	// reverse map of the above
@@ -115,6 +116,7 @@ func NewNodeHandler(
 		nodeIPsByIDs:           map[uint16]string{},
 		ipsecMetricCollector:   ipsec.NewXFRMCollector(),
 		prefixClusterMutatorFn: func(node *nodeTypes.Node) []cmtypes.PrefixClusterOpts { return nil },
+		ipsecUpdateNeeded:      map[nodeTypes.Identity]bool{},
 	}
 }
 
@@ -271,7 +273,7 @@ func createDirectRouteSpec(CIDR *cidr.CIDR, nodeIP net.IP) (routeSpec *netlink.R
 
 		routes, err = netlink.RouteListFiltered(family, filter, netlink.RT_FILTER_DST|netlink.RT_FILTER_TABLE)
 		if err != nil {
-			err = fmt.Errorf("unable to find local route for destination %s: %s", nodeIP, err)
+			err = fmt.Errorf("unable to find local route for destination %s: %w", nodeIP, err)
 			return
 		}
 
@@ -690,7 +692,7 @@ func (n *linuxNodeHandler) insertNeighbor4(ctx context.Context, newNode *nodeTyp
 
 	nextHopIPv4, err := getNextHopIP(nextHopIPv4, link)
 	if err != nil {
-		scopedLog.WithError(err).Info("Unable to determine next hop address")
+		scopedLog.WithError(err).Debug("Unable to determine next hop address")
 		return
 	}
 	nextHopStr := nextHopIPv4.String()
@@ -761,7 +763,7 @@ func (n *linuxNodeHandler) insertNeighbor6(ctx context.Context, newNode *nodeTyp
 
 	nextHopIPv6, err := getNextHopIP(nextHopIPv6, link)
 	if err != nil {
-		scopedLog.WithError(err).Info("Unable to determine next hop address")
+		scopedLog.WithError(err).Debug("Unable to determine next hop address")
 		return
 	}
 	nextHopStr := nextHopIPv6.String()
@@ -908,40 +910,6 @@ func (n *linuxNodeHandler) deleteNeighbor(oldNode *nodeTypes.Node) {
 	n.deleteNeighbor6(oldNode)
 }
 
-// getDefaultEncryptionInterface() is needed to find the interface used when
-// populating neighbor table and doing arpRequest. For most configurations
-// there is only a single interface so choosing [0] works by choosing the only
-// interface. However EKS, uses multiple interfaces, but fortunately for us
-// in EKS any interface would work so pick the [0] index here as well.
-func getDefaultEncryptionInterface() string {
-	iface := ""
-	if len(option.Config.EncryptInterface) > 0 {
-		iface = option.Config.EncryptInterface[0]
-	}
-	return iface
-}
-
-func getLinkLocalIP(family int) (net.IP, error) {
-	iface := getDefaultEncryptionInterface()
-	link, err := netlink.LinkByName(iface)
-	if err != nil {
-		return nil, err
-	}
-	addr, err := netlink.AddrList(link, family)
-	if err != nil {
-		return nil, err
-	}
-	return addr[0].IPNet.IP, nil
-}
-
-func getV4LinkLocalIP() (net.IP, error) {
-	return getLinkLocalIP(netlink.FAMILY_V4)
-}
-
-func getV6LinkLocalIP() (net.IP, error) {
-	return getLinkLocalIP(netlink.FAMILY_V6)
-}
-
 // Must be called with linuxNodeHandler.mutex held.
 func (n *linuxNodeHandler) nodeUpdate(oldNode, newNode *nodeTypes.Node, firstAddition bool) error {
 	var (
@@ -974,7 +942,7 @@ func (n *linuxNodeHandler) nodeUpdate(oldNode, newNode *nodeTypes.Node, firstAdd
 	}
 
 	if n.nodeConfig.EnableIPSec {
-		errs = errors.Join(errs, n.enableIPsec(newNode, remoteNodeID))
+		errs = errors.Join(errs, n.enableIPsec(oldNode, newNode, remoteNodeID))
 		newKey = newNode.EncryptionKey
 	}
 
@@ -1110,10 +1078,10 @@ func (n *linuxNodeHandler) nodeDelete(oldNode *nodeTypes.Node) error {
 	var errs error
 	if n.nodeConfig.EnableAutoDirectRouting && !n.enableEncapsulation(oldNode) {
 		if err := n.deleteDirectRoute(oldNode.IPv4AllocCIDR, oldIP4); err != nil {
-			errs = errors.Join(errs, fmt.Errorf("failed to remove old direct routing: deleting old routes %w", err))
+			errs = errors.Join(errs, fmt.Errorf("failed to remove old direct routing: deleting old routes: %w", err))
 		}
 		if err := n.deleteDirectRoute(oldNode.IPv6AllocCIDR, oldIP6); err != nil {
-			errs = errors.Join(errs, fmt.Errorf("failed to remove old direct routing: deleting old routes %w", err))
+			errs = errors.Join(errs, fmt.Errorf("failed to remove old direct routing: deleting old routes: %w", err))
 		}
 	}
 
@@ -1223,13 +1191,6 @@ func (n *linuxNodeHandler) NodeConfigurationChanged(newConfig datapath.LocalNode
 				return err
 			}
 			n.enableNeighDiscovery = len(ifaceNames) != 0 // No need to arping for L2-less devices
-		case n.nodeConfig.EnableIPSec && !option.Config.TunnelingEnabled() &&
-			len(option.Config.EncryptInterface) != 0:
-			// When FIB lookup is not supported we need to pick an
-			// interface so pick first interface in the list. On
-			// kernels with FIB lookup helpers we do a lookup from
-			// the datapath side and ignore this value.
-			ifaceNames = append(ifaceNames, option.Config.EncryptInterface[0])
 		}
 
 		if n.enableNeighDiscovery {
@@ -1532,7 +1493,8 @@ func (n *linuxNodeHandler) NodeCleanNeighbors(migrateOnly bool) {
 		if err != nil {
 			// If the link is not found we don't need to keep retrying cleaning
 			// up the neihbor entries so we can keep successClean=true
-			if _, ok := err.(netlink.LinkNotFoundError); !ok {
+			var linkNotFoundError netlink.LinkNotFoundError
+			if !errors.As(err, &linkNotFoundError) {
 				log.WithError(err).WithFields(logrus.Fields{
 					logfields.Device: linkName,
 				}).Error("Unable to remove PERM neighbor entries of network device")

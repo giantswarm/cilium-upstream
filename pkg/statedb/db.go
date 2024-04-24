@@ -216,7 +216,7 @@ func (db *DB) WriteTxn(table TableMeta, tables ...TableMeta) WriteTxn {
 		db:             db,
 		rootReadTxn:    rootReadTxn,
 		modifiedTables: tableEntries,
-		writeTxns:      make(map[tableIndex]indexWriteTxn),
+		writeTxns:      make(map[tableIndex]indexTxn),
 		smus:           smus,
 		acquiredAt:     acquiredAt,
 		tableNames:     strings.Join(tableNames, "+"),
@@ -233,7 +233,6 @@ func (db *DB) Start(cell.HookContext) error {
 }
 
 func (db *DB) Stop(stopCtx cell.HookContext) error {
-	close(db.gcTrigger)
 	db.cancel()
 	select {
 	case <-stopCtx.Done():

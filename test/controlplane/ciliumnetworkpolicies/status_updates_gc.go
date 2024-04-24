@@ -258,6 +258,7 @@ func init() {
 					vp.Set(operatorApi.OperatorAPIServeAddr, "localhost:0")
 				},
 			).
+			EnsureWatchers("nodes", "ciliumnetworkpolicies", "ciliumclusterwidenetworkpolicies").
 			Eventually(func() error { return validateCNPs(test) }).
 			StopAgent().
 			StopOperator().
@@ -279,6 +280,7 @@ func init() {
 					vp.Set(operatorApi.OperatorAPIServeAddr, "localhost:0")
 				},
 			).
+			EnsureWatchers("nodes", "ciliumnetworkpolicies", "ciliumclusterwidenetworkpolicies").
 			Eventually(func() error { return validateCNPsAfterGC(test) }).
 			StopAgent().
 			StopOperator().

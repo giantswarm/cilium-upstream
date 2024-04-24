@@ -20,6 +20,7 @@ import (
 	v2alpha1api "github.com/cilium/cilium/pkg/k8s/apis/cilium.io/v2alpha1"
 	slim_corev1 "github.com/cilium/cilium/pkg/k8s/slim/k8s/api/core/v1"
 	slim_metav1 "github.com/cilium/cilium/pkg/k8s/slim/k8s/apis/meta/v1"
+	"github.com/cilium/cilium/pkg/option"
 )
 
 // We use similar local listen ports as the tests in the pkg/bgpv1/test package.
@@ -139,9 +140,15 @@ func TestPreflightReconciler(t *testing.T) {
 				},
 			}
 
-			err = preflightReconciler.Reconcile(context.Background(), params)
-			if (tt.err == nil) != (err == nil) {
-				t.Fatalf("wanted error: %v", (tt.err == nil))
+			// Run the reconciler twice to ensure idempotency. This
+			// simulates the retrying behavior of the controller.
+			for i := 0; i < 2; i++ {
+				t.Run(tt.name, func(t *testing.T) {
+					err = preflightReconciler.Reconcile(context.Background(), params)
+					if (tt.err == nil) != (err == nil) {
+						t.Fatalf("wanted error: %v", (tt.err == nil))
+					}
+				})
 			}
 			if tt.shouldRecreate && testSC.Server == originalServer {
 				t.Fatalf("preflightReconciler did not recreate server")
@@ -221,7 +228,8 @@ func TestReconcileAfterServerReinit(t *testing.T) {
 		ServiceSelector: serviceSelector,
 	}
 
-	exportPodCIDRReconciler := NewExportPodCIDRReconciler().Reconciler
+	daemonConfig := &option.DaemonConfig{IPAM: "Kubernetes"}
+	exportPodCIDRReconciler := NewExportPodCIDRReconciler(daemonConfig).Reconciler
 	params := ReconcileParams{
 		CurrentServer: testSC,
 		DesiredConfig: newc,

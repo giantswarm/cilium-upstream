@@ -6,6 +6,7 @@ package loader
 import (
 	"bufio"
 	"context"
+	"errors"
 	"fmt"
 	"net"
 	"os"
@@ -52,7 +53,7 @@ func (l *Loader) writeNetdevHeader(dir string, o datapath.BaseProgramOwner) erro
 
 	f, err := os.Create(headerPath)
 	if err != nil {
-		return fmt.Errorf("failed to open file %s for writing: %s", headerPath, err)
+		return fmt.Errorf("failed to open file %s for writing: %w", headerPath, err)
 
 	}
 	defer f.Close()
@@ -84,7 +85,7 @@ func writePreFilterHeader(preFilter *prefilter.PreFilter, dir string) error {
 
 	f, err := os.Create(headerPath)
 	if err != nil {
-		return fmt.Errorf("failed to open file %s for writing: %s", headerPath, err)
+		return fmt.Errorf("failed to open file %s for writing: %w", headerPath, err)
 	}
 	defer f.Close()
 
@@ -146,11 +147,11 @@ func cleanIngressQdisc() error {
 	for _, iface := range option.Config.GetDevices() {
 		link, err := netlink.LinkByName(iface)
 		if err != nil {
-			return fmt.Errorf("failed to retrieve link %s by name: %q", iface, err)
+			return fmt.Errorf("failed to retrieve link %s by name: %w", iface, err)
 		}
 		qdiscs, err := netlink.QdiscList(link)
 		if err != nil {
-			return fmt.Errorf("failed to retrieve qdisc list of link %s: %q", iface, err)
+			return fmt.Errorf("failed to retrieve qdisc list of link %s: %w", iface, err)
 		}
 		for _, q := range qdiscs {
 			if q.Type() != "ingress" {
@@ -158,7 +159,7 @@ func cleanIngressQdisc() error {
 			}
 			err = netlink.QdiscDel(q)
 			if err != nil {
-				return fmt.Errorf("failed to delete ingress qdisc of link %s: %q", iface, err)
+				return fmt.Errorf("failed to delete ingress qdisc of link %s: %w", iface, err)
 			} else {
 				log.WithField(logfields.Device, iface).Info("Removed prior present ingress qdisc from device so that Cilium's datapath can be loaded")
 			}
@@ -169,7 +170,9 @@ func cleanIngressQdisc() error {
 
 // reinitializeIPSec is used to recompile and load encryption network programs.
 func (l *Loader) reinitializeIPSec(ctx context.Context) error {
-	if !option.Config.EnableIPSec {
+	// If devices are specified, then we are relying on autodetection and don't
+	// need the code below, specific to EncryptInterface.
+	if !option.Config.EnableIPSec || len(option.Config.GetDevices()) > 0 {
 		return nil
 	}
 
@@ -195,17 +198,45 @@ func (l *Loader) reinitializeIPSec(ctx context.Context) error {
 	}
 
 	// No interfaces is valid in tunnel disabled case
-	if len(interfaces) != 0 {
-		for _, iface := range interfaces {
-			if err := connector.DisableRpFilter(iface); err != nil {
-				log.WithError(err).WithField(logfields.Interface, iface).Warn("Rpfilter could not be disabled, node to node encryption may fail")
-			}
+	if len(interfaces) == 0 {
+		return nil
+	}
+
+	progs := []progDefinition{{progName: symbolFromNetwork, direction: dirIngress}}
+	var errs error
+	for _, iface := range interfaces {
+		if err := connector.DisableRpFilter(iface); err != nil {
+			log.WithError(err).WithField(logfields.Interface, iface).Warn("Rpfilter could not be disabled, node to node encryption may fail")
 		}
 
-		if err := l.replaceNetworkDatapath(ctx, interfaces); err != nil {
-			return fmt.Errorf("failed to load encryption program: %w", err)
+		device, err := netlink.LinkByName(iface)
+		if err != nil {
+			return fmt.Errorf("retrieving device %s: %w", iface, err)
+		}
+
+		finalize, err := replaceDatapath(ctx,
+			replaceDatapathOptions{
+				device:   iface,
+				elf:      networkObj,
+				programs: progs,
+				linkDir:  bpffsDeviceLinksDir(bpf.CiliumPath(), device),
+			},
+		)
+		if err != nil {
+			log.WithField(logfields.Interface, iface).WithError(err).Error("Load encryption network failed")
+			// collect errors, but keep trying replacing other interfaces.
+			errs = errors.Join(errs, err)
+		} else {
+			log.WithField(logfields.Interface, iface).Info("Encryption network program (re)loaded")
+			// Defer map removal until all interfaces' progs have been replaced.
+			defer finalize()
 		}
 	}
+
+	if errs != nil {
+		return fmt.Errorf("failed to load encryption program: %w", errs)
+	}
+
 	return nil
 }
 
@@ -230,6 +261,7 @@ func (l *Loader) reinitializeOverlay(ctx context.Context, tunnelConfig tunnel.Co
 	}
 	if option.Config.EnableNodePort {
 		opts = append(opts, "-DDISABLE_LOOPBACK_LB")
+		opts = append(opts, fmt.Sprintf("-DNATIVE_DEV_IFINDEX=%d", link.Attrs().Index))
 	}
 	if option.Config.IsDualStack() {
 		opts = append(opts, fmt.Sprintf("-DSECLABEL_IPV4=%d", identity.ReservedIdentityWorldIPv4))

@@ -53,6 +53,7 @@ cilium-agent [flags]
       --bpf-map-dynamic-size-ratio float                          Ratio (0.0-1.0] of total system memory to use for dynamic sizing of CT, NAT and policy BPF maps (default 0.0025)
       --bpf-nat-global-max int                                    Maximum number of entries for the global BPF NAT table (default 524288)
       --bpf-neigh-global-max int                                  Maximum number of entries for the global BPF neighbor table (default 524288)
+      --bpf-node-map-max uint32                                   Sets size of node bpf map which will be the max number of unique Node IPs in the cluster (default 16384)
       --bpf-policy-map-max int                                    Maximum number of entries in endpoint policy map (per endpoint) (default 16384)
       --bpf-root string                                           Path to BPF filesystem
       --bpf-sock-rev-map-max int                                  Maximum number of entries for the SockRevNAT BPF map (default 262144)
@@ -293,7 +294,7 @@ cilium-agent [flags]
       --preallocate-bpf-maps                                      Enable BPF map pre-allocation (default true)
       --prepend-iptables-chains                                   Prepend custom iptables chains instead of appending (default true)
       --procfs string                                             Root's proc filesystem path (default "/proc")
-      --prometheus-serve-addr string                              IP:Port on which to serve prometheus metrics (pass ":Port" to bind on all interfaces, "" is off) (default ":9962")
+      --prometheus-serve-addr string                              IP:Port on which to serve prometheus metrics (pass ":Port" to bind on all interfaces, "" is off)
       --proxy-connect-timeout uint                                Time after which a TCP connect attempt is considered failed unless completed (in seconds) (default 2)
       --proxy-gid uint                                            Group ID for proxy control plane sockets. (default 1337)
       --proxy-idle-timeout-seconds int                            Set Envoy upstream HTTP idle connection timeout seconds. Does not apply to connections with pending requests. Default 60s (default 60)

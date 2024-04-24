@@ -4,6 +4,7 @@
 #include "bpf/types_mapper.h"
 #include <bpf/ctx/skb.h>
 #include <bpf/api.h>
+#include <linux/in.h>
 
 #include <ep_config.h>
 #include <node_config.h>
@@ -33,6 +34,7 @@
 #include "lib/lxc.h"
 #include "lib/identity.h"
 #include "lib/policy.h"
+#include "lib/mcast.h"
 
 /* Override LB_SELECTION initially defined in node_config.h to force bpf_lxc to use the random backend selection
  * algorithm for in-cluster traffic. Otherwise, it will fail with the Maglev hash algorithm because Cilium doesn't provision
@@ -253,7 +255,8 @@ static __always_inline int drop_for_direction(struct __ctx_buff *ctx,
 #endif /* ENABLE_IPV4 || ENABLE_IPV6 */
 
 #define TAIL_CT_LOOKUP4(ID, NAME, DIR, CONDITION, TARGET_ID, TARGET_NAME)	\
-declare_tailcall_if(CONDITION, ID)						\
+__section_tail(CILIUM_MAP_CALLS, ID)						\
+static __always_inline								\
 int NAME(struct __ctx_buff *ctx)						\
 {										\
 	struct ct_buffer4 ct_buffer = {};					\
@@ -295,7 +298,8 @@ int NAME(struct __ctx_buff *ctx)						\
 }
 
 #define TAIL_CT_LOOKUP6(ID, NAME, DIR, CONDITION, TARGET_ID, TARGET_NAME)	\
-declare_tailcall_if(CONDITION, ID)						\
+__section_tail(CILIUM_MAP_CALLS, ID)						\
+static __always_inline								\
 int NAME(struct __ctx_buff *ctx)						\
 {										\
 	struct ct_buffer6 ct_buffer = {};					\
@@ -592,7 +596,7 @@ ct_recreate6:
 	 */
 	if (*dst_sec_identity == HOST_ID) {
 		ctx_store_meta(ctx, CB_FROM_HOST, 0);
-		tail_call_static(ctx, &POLICY_CALL_MAP, HOST_EP_ID);
+		tail_call_static(ctx, POLICY_CALL_MAP, HOST_EP_ID);
 		return DROP_HOST_NOT_READY;
 	}
 #endif /* ENABLE_HOST_FIREWALL && !ENABLE_ROUTING */
@@ -644,6 +648,13 @@ ct_recreate6:
 		key.ip6.p2 = daddr->p2;
 		key.ip6.p3 = daddr->p3;
 		key.family = ENDPOINT_KEY_IPV6;
+
+#if !defined(ENABLE_NODEPORT) && defined(ENABLE_HOST_FIREWALL)
+		/* See comment in handle_ipv4_from_lxc(). */
+		if ((ct_status == CT_REPLY || ct_status == CT_RELATED) &&
+		    identity_is_remote_node(*dst_sec_identity))
+			goto encrypt_to_stack;
+#endif /* !ENABLE_NODEPORT && ENABLE_HOST_FIREWALL */
 
 		/* Three cases exist here either (a) the encap and redirect could
 		 * not find the tunnel so fallthrough to nat46 and stack, (b)
@@ -721,7 +732,8 @@ encrypt_to_stack:
 	return CTX_ACT_OK;
 }
 
-declare_tailcall_if(is_defined(ENABLE_PER_PACKET_LB), CILIUM_CALL_IPV6_FROM_LXC_CONT)
+__section_tail(CILIUM_MAP_CALLS, CILIUM_CALL_IPV6_FROM_LXC_CONT)
+static __always_inline
 int tail_handle_ipv6_cont(struct __ctx_buff *ctx)
 {
 	__u32 dst_sec_identity = 0;
@@ -734,7 +746,7 @@ int tail_handle_ipv6_cont(struct __ctx_buff *ctx)
 
 #ifdef ENABLE_CUSTOM_CALLS
 	if (!encode_custom_prog_meta(ctx, ret, dst_sec_identity)) {
-		tail_call_static(ctx, &CUSTOM_CALLS_MAP,
+		tail_call_static(ctx, CUSTOM_CALLS_MAP,
 				 CUSTOM_CALLS_IDX_IPV6_EGRESS);
 		update_metrics(ctx_full_len(ctx), METRIC_EGRESS,
 			       REASON_MISSED_CUSTOM_CALL);
@@ -1059,7 +1071,7 @@ ct_recreate4:
 	 */
 	if (*dst_sec_identity == HOST_ID) {
 		ctx_store_meta(ctx, CB_FROM_HOST, 0);
-		tail_call_static(ctx, &POLICY_CALL_MAP, HOST_EP_ID);
+		tail_call_static(ctx, POLICY_CALL_MAP, HOST_EP_ID);
 		return DROP_HOST_NOT_READY;
 	}
 #endif /* ENABLE_HOST_FIREWALL && !ENABLE_ROUTING */
@@ -1184,6 +1196,21 @@ skip_vtep:
 		key.family = ENDPOINT_KEY_IPV4;
 		key.cluster_id = (__u8)cluster_id;
 
+#if !defined(ENABLE_NODEPORT) && defined(ENABLE_HOST_FIREWALL)
+		/*
+		 * For the host firewall, traffic from a pod to a remote node is sent
+		 * through the tunnel. In the case of node to remote pod traffic via
+		 * externalTrafficPolicy=Local services, packets may be DNATed when
+		 * they enter the remote node (without being SNATed at the same time).
+		 * If kube-proxy is used, the response needs to go through the stack
+		 * to apply the correct reverse DNAT, and then be routed accordingly.
+		 * See #14674 for details.
+		 */
+		if ((ct_status == CT_REPLY || ct_status == CT_RELATED) &&
+		    identity_is_remote_node(*dst_sec_identity))
+			goto encrypt_to_stack;
+#endif /* !ENABLE_NODEPORT && ENABLE_HOST_FIREWALL */
+
 #ifdef ENABLE_CLUSTER_AWARE_ADDRESSING
 		/*
 		 * The destination is remote node, but the connection is originated from tunnel.
@@ -1280,7 +1307,8 @@ encrypt_to_stack:
 	return CTX_ACT_OK;
 }
 
-declare_tailcall_if(is_defined(ENABLE_PER_PACKET_LB), CILIUM_CALL_IPV4_FROM_LXC_CONT)
+__section_tail(CILIUM_MAP_CALLS, CILIUM_CALL_IPV4_FROM_LXC_CONT)
+static __always_inline
 int tail_handle_ipv4_cont(struct __ctx_buff *ctx)
 {
 	__u32 dst_sec_identity = 0;
@@ -1294,7 +1322,7 @@ int tail_handle_ipv4_cont(struct __ctx_buff *ctx)
 
 #ifdef ENABLE_CUSTOM_CALLS
 	if (!encode_custom_prog_meta(ctx, ret, dst_sec_identity)) {
-		tail_call_static(ctx, &CUSTOM_CALLS_MAP,
+		tail_call_static(ctx, CUSTOM_CALLS_MAP,
 				 CUSTOM_CALLS_IDX_IPV4_EGRESS);
 		update_metrics(ctx_full_len(ctx), METRIC_EGRESS,
 			       REASON_MISSED_CUSTOM_CALL);
@@ -1328,6 +1356,23 @@ static __always_inline int __tail_handle_ipv4(struct __ctx_buff *ctx,
 
 	if (unlikely(!is_valid_lxc_src_ipv4(ip4)))
 		return DROP_INVALID_SIP;
+
+#ifdef ENABLE_MULTICAST
+	if (mcast_ipv4_is_igmp(ip4)) {
+		/* note:
+		 * we will always drop IGMP from this point on as we have no
+		 * need to forward to the stack
+		 */
+		return mcast_ipv4_handle_igmp(ctx, ip4, data, data_end);
+	}
+
+	if (IN_MULTICAST(bpf_ntohl(ip4->daddr))) {
+		if (mcast_lookup_subscriber_map(&ip4->daddr)) {
+			ep_tail_call(ctx, CILIUM_CALL_MULTICAST_EP_DELIVERY);
+			return DROP_MISSED_TAIL_CALL;
+		}
+	}
+#endif /* ENABLE_MULTICAST */
 
 #ifdef ENABLE_PER_PACKET_LB
 	/* will tailcall internally or return error */
@@ -1590,8 +1635,8 @@ skip_policy_enforcement:
 	return CTX_ACT_OK;
 }
 
-declare_tailcall_if(__and(is_defined(ENABLE_IPV4), is_defined(ENABLE_IPV6)),
-		    CILIUM_CALL_IPV6_TO_LXC_POLICY_ONLY)
+__section_tail(CILIUM_MAP_CALLS, CILIUM_CALL_IPV6_TO_LXC_POLICY_ONLY)
+static __always_inline
 int tail_ipv6_policy(struct __ctx_buff *ctx)
 {
 	struct ipv6_ct_tuple tuple = {};
@@ -1658,7 +1703,7 @@ int tail_ipv6_policy(struct __ctx_buff *ctx)
 	 * proxy).
 	 */
 	if (!proxy_redirect && !encode_custom_prog_meta(ctx, ret, src_label)) {
-		tail_call_static(ctx, &CUSTOM_CALLS_MAP,
+		tail_call_static(ctx, CUSTOM_CALLS_MAP,
 				 CUSTOM_CALLS_IDX_IPV6_INGRESS);
 		update_metrics(ctx_full_len(ctx), METRIC_INGRESS,
 			       REASON_MISSED_CUSTOM_CALL);
@@ -1751,7 +1796,7 @@ out:
 	 */
 	if (!proxy_redirect &&
 	    !encode_custom_prog_meta(ctx, ret, src_sec_identity)) {
-		tail_call_static(ctx, &CUSTOM_CALLS_MAP,
+		tail_call_static(ctx, CUSTOM_CALLS_MAP,
 				 CUSTOM_CALLS_IDX_IPV6_INGRESS);
 		update_metrics(ctx_full_len(ctx), METRIC_INGRESS,
 			       REASON_MISSED_CUSTOM_CALL);
@@ -1957,8 +2002,8 @@ skip_policy_enforcement:
 	return CTX_ACT_OK;
 }
 
-declare_tailcall_if(__and(is_defined(ENABLE_IPV4), is_defined(ENABLE_IPV6)),
-		    CILIUM_CALL_IPV4_TO_LXC_POLICY_ONLY)
+__section_tail(CILIUM_MAP_CALLS, CILIUM_CALL_IPV4_TO_LXC_POLICY_ONLY)
+static __always_inline
 int tail_ipv4_policy(struct __ctx_buff *ctx)
 {
 	struct ipv4_ct_tuple tuple = {};
@@ -2029,7 +2074,7 @@ int tail_ipv4_policy(struct __ctx_buff *ctx)
 	 * proxy).
 	 */
 	if (!proxy_redirect && !encode_custom_prog_meta(ctx, ret, src_label)) {
-		tail_call_static(ctx, &CUSTOM_CALLS_MAP,
+		tail_call_static(ctx, CUSTOM_CALLS_MAP,
 				 CUSTOM_CALLS_IDX_IPV4_INGRESS);
 		update_metrics(ctx_full_len(ctx), METRIC_INGRESS,
 			       REASON_MISSED_CUSTOM_CALL);
@@ -2209,7 +2254,7 @@ out:
 	 */
 	if (!proxy_redirect &&
 	    !encode_custom_prog_meta(ctx, ret, src_sec_identity)) {
-		tail_call_static(ctx, &CUSTOM_CALLS_MAP,
+		tail_call_static(ctx, CUSTOM_CALLS_MAP,
 				 CUSTOM_CALLS_IDX_IPV4_INGRESS);
 		update_metrics(ctx_full_len(ctx), METRIC_INGRESS,
 			       REASON_MISSED_CUSTOM_CALL);
@@ -2384,7 +2429,7 @@ int cil_to_container(struct __ctx_buff *ctx)
 	if (identity == HOST_ID) {
 		ctx_store_meta(ctx, CB_FROM_HOST, 1);
 		ctx_store_meta(ctx, CB_DST_ENDPOINT_ID, LXC_ID);
-		tail_call_static(ctx, &POLICY_CALL_MAP, HOST_EP_ID);
+		tail_call_static(ctx, POLICY_CALL_MAP, HOST_EP_ID);
 		return send_drop_notify(ctx, identity, sec_label, LXC_ID,
 					DROP_HOST_NOT_READY, CTX_ACT_DROP,
 					METRIC_INGRESS);

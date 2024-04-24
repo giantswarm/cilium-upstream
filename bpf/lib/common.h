@@ -53,7 +53,7 @@
 
 #if defined(ENCAP_IFINDEX) || defined(ENABLE_EGRESS_GATEWAY_COMMON) || \
     (defined(ENABLE_DSR) && DSR_ENCAP_MODE == DSR_ENCAP_GENEVE)
-#define HAVE_ENCAP
+#define HAVE_ENCAP	1
 
 /* NOT_VTEP_DST is passed to an encapsulation function when the
  * destination of the tunnel is not a VTEP.
@@ -135,7 +135,8 @@ enum {
 #define CILIUM_CALL_IPV6_CONT_FROM_NETDEV	46
 #define CILIUM_CALL_IPV4_NO_SERVICE		47
 #define CILIUM_CALL_IPV6_NO_SERVICE		48
-#define CILIUM_CALL_SIZE			49
+#define CILIUM_CALL_MULTICAST_EP_DELIVERY       49
+#define CILIUM_CALL_SIZE			50
 
 typedef __u64 mac_t;
 
@@ -639,6 +640,9 @@ enum {
 #define DROP_TTL_EXCEEDED	-196
 #define DROP_NO_NODE_ID		-197
 #define DROP_RATE_LIMITED	-198
+#define DROP_IGMP_HANDLED	-199
+#define DROP_IGMP_SUBSCRIBED    -200
+#define DROP_MULTICAST_HANDLED  -201
 #define DROP_HOST_NOT_READY	-202
 
 #define NAT_PUNT_TO_STACK	DROP_NAT_NOT_NEEDED
@@ -702,6 +706,7 @@ enum metric_dir {
 #define MARK_MAGIC_IDENTITY		0x0F00 /* mark carries identity */
 #define MARK_MAGIC_TO_PROXY		0x0200
 #define MARK_MAGIC_SNAT_DONE		0x0300
+#define MARK_MAGIC_OVERLAY		0x0400
 
 #define MARK_MAGIC_KEY_MASK		0xFF00
 

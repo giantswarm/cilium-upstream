@@ -41,6 +41,7 @@ func testGracefulTermination(t *testing.T) {
 		UpdateObjectsFromFile(abs("init.yaml")).
 		SetupEnvironment().
 		StartAgent(modConfig).
+		EnsureWatchers("endpointslices", "services").
 
 		// Step 1: Initial creation of the services and backends
 		// lbmap1.golden: Shows graceful-term-svc service with an active backend

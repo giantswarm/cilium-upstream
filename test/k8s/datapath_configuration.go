@@ -672,7 +672,6 @@ var _ = Describe("K8sDatapathConfig", func() {
 				options["enableIPv6Masquerade"] = "false"
 			}
 			deploymentManager.DeployCilium(options, DeployCiliumOptionsAndDNS)
-			deploymentManager.DeployCilium(options, DeployCiliumOptionsAndDNS)
 			testHostFirewall(kubectl)
 		})
 
@@ -691,7 +690,6 @@ var _ = Describe("K8sDatapathConfig", func() {
 				// BPF IPv6 masquerade not currently supported with host firewall - GH-26074
 				options["enableIPv6Masquerade"] = "false"
 			}
-			deploymentManager.DeployCilium(options, DeployCiliumOptionsAndDNS)
 			deploymentManager.DeployCilium(options, DeployCiliumOptionsAndDNS)
 			testHostFirewall(kubectl)
 		})
@@ -713,7 +711,6 @@ var _ = Describe("K8sDatapathConfig", func() {
 				options["enableIPv6Masquerade"] = "false"
 			}
 			deploymentManager.DeployCilium(options, DeployCiliumOptionsAndDNS)
-			deploymentManager.DeployCilium(options, DeployCiliumOptionsAndDNS)
 			testHostFirewall(kubectl)
 		})
 
@@ -730,7 +727,6 @@ var _ = Describe("K8sDatapathConfig", func() {
 				// BPF IPv6 masquerade not currently supported with host firewall - GH-26074
 				options["enableIPv6Masquerade"] = "false"
 			}
-			deploymentManager.DeployCilium(options, DeployCiliumOptionsAndDNS)
 			deploymentManager.DeployCilium(options, DeployCiliumOptionsAndDNS)
 			testHostFirewall(kubectl)
 		})
@@ -1156,7 +1152,7 @@ func checkMonitorOutput(monitorOutput []byte, egressPktCount, ingressPktCount in
 	By("Looking for TCP notifications using the ephemeral port %q", portBytes)
 	port, err := strconv.Atoi(string(portBytes))
 	if err != nil {
-		return fmt.Errorf("ephemeral port %q could not be converted to integer: %s",
+		return fmt.Errorf("ephemeral port %q could not be converted to integer: %w",
 			string(portBytes), err)
 	}
 

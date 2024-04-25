@@ -91,6 +91,7 @@ func init() {
 					UpdateObjectsFromFile(abs("init.yaml")).
 					SetupEnvironment().
 					StartAgent(modConfig).
+					EnsureWatchers("nodes").
 					ClearEnvironment()
 
 				// Run through the test steps

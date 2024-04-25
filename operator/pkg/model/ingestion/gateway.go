@@ -4,6 +4,7 @@
 package ingestion
 
 import (
+	"fmt"
 	"strings"
 	"time"
 
@@ -125,8 +126,8 @@ func toHTTPRoutes(listener gatewayv1.Listener, input []gatewayv1.HTTPRoute, serv
 		if len(computedHost) == 1 && computedHost[0] == allHosts {
 			computedHost = nil
 		}
-
 		for _, rule := range r.Spec.Rules {
+			var backendHTTPFilters []*model.BackendHTTPFilter
 			bes := make([]model.Backend, 0, len(rule.BackendRefs))
 			for _, be := range rule.BackendRefs {
 				if !helpers.IsBackendReferenceAllowed(r.GetNamespace(), be.BackendRef, gatewayv1.SchemeGroupVersion.WithKind("HTTPRoute"), grants) {
@@ -141,6 +142,28 @@ func toHTTPRoutes(listener gatewayv1.Listener, input []gatewayv1.HTTPRoute, serv
 				}
 				if serviceExists(string(be.Name), helpers.NamespaceDerefOr(be.Namespace, r.Namespace), services) {
 					bes = append(bes, backendToModelBackend(be.BackendRef, r.Namespace))
+					for _, f := range be.Filters {
+						switch f.Type {
+						case gatewayv1.HTTPRouteFilterRequestHeaderModifier:
+							backendHTTPFilters = append(backendHTTPFilters, &model.BackendHTTPFilter{
+								Name: fmt.Sprintf("%s:%s:%d", helpers.NamespaceDerefOr(be.Namespace, r.Namespace), be.Name, uint32(*be.Port)),
+								RequestHeaderFilter: &model.HTTPHeaderFilter{
+									HeadersToAdd:    toHTTPHeaders(f.RequestHeaderModifier.Add),
+									HeadersToSet:    toHTTPHeaders(f.RequestHeaderModifier.Set),
+									HeadersToRemove: f.RequestHeaderModifier.Remove,
+								},
+							})
+						case gatewayv1.HTTPRouteFilterResponseHeaderModifier:
+							backendHTTPFilters = append(backendHTTPFilters, &model.BackendHTTPFilter{
+								Name: fmt.Sprintf("%s:%s:%d", helpers.NamespaceDerefOr(be.Namespace, r.Namespace), be.Name, uint32(*be.Port)),
+								ResponseHeaderModifier: &model.HTTPHeaderFilter{
+									HeadersToAdd:    toHTTPHeaders(f.ResponseHeaderModifier.Add),
+									HeadersToSet:    toHTTPHeaders(f.ResponseHeaderModifier.Set),
+									HeadersToRemove: f.ResponseHeaderModifier.Remove,
+								},
+							})
+						}
+					}
 				}
 			}
 
@@ -172,7 +195,7 @@ func toHTTPRoutes(listener gatewayv1.Listener, input []gatewayv1.HTTPRoute, serv
 						HeadersToRemove: f.ResponseHeaderModifier.Remove,
 					}
 				case gatewayv1.HTTPRouteFilterRequestRedirect:
-					requestRedirectFilter = toHTTPRequestRedirectFilter(f.RequestRedirect)
+					requestRedirectFilter = toHTTPRequestRedirectFilter(listener, f.RequestRedirect)
 				case gatewayv1.HTTPRouteFilterURLRewrite:
 					rewriteFilter = toHTTPRewriteFilter(f.URLRewrite)
 				case gatewayv1.HTTPRouteFilterRequestMirror:
@@ -184,6 +207,7 @@ func toHTTPRoutes(listener gatewayv1.Listener, input []gatewayv1.HTTPRoute, serv
 				httpRoutes = append(httpRoutes, model.HTTPRoute{
 					Hostnames:              computedHost,
 					Backends:               bes,
+					BackendHTTPFilters:     backendHTTPFilters,
 					DirectResponse:         dr,
 					RequestHeaderFilter:    requestHeaderFilter,
 					ResponseHeaderModifier: responseHeaderFilter,
@@ -202,6 +226,7 @@ func toHTTPRoutes(listener gatewayv1.Listener, input []gatewayv1.HTTPRoute, serv
 					QueryParamsMatch:       toQueryMatch(match),
 					Method:                 (*string)(match.Method),
 					Backends:               bes,
+					BackendHTTPFilters:     backendHTTPFilters,
 					DirectResponse:         dr,
 					RequestHeaderFilter:    requestHeaderFilter,
 					ResponseHeaderModifier: responseHeaderFilter,
@@ -383,7 +408,7 @@ func toTLSRoutes(listener gatewayv1beta1.Listener, input []gatewayv1alpha2.TLSRo
 	return tlsRoutes
 }
 
-func toHTTPRequestRedirectFilter(redirect *gatewayv1.HTTPRequestRedirectFilter) *model.HTTPRequestRedirectFilter {
+func toHTTPRequestRedirectFilter(listener gatewayv1beta1.Listener, redirect *gatewayv1.HTTPRequestRedirectFilter) *model.HTTPRequestRedirectFilter {
 	if redirect == nil {
 		return nil
 	}
@@ -398,11 +423,22 @@ func toHTTPRequestRedirectFilter(redirect *gatewayv1.HTTPRequestRedirectFilter) 
 			pathModifier.Prefix = *redirect.Path.ReplacePrefixMatch
 		}
 	}
+	var redirectPort *int32
+	if redirect.Port == nil {
+		if redirect.Scheme == nil {
+			// If redirect scheme is empty, the redirect port MUST be the Gateway
+			// Listener port.
+			// Refer to: https://github.com/kubernetes-sigs/gateway-api/blob/35fe25d1384a41c9b89dd5af7ae3214c431f008c/apis/v1/httproute_types.go#L1040-L1041
+			redirectPort = model.AddressOf(int32(listener.Port))
+		}
+	} else {
+		redirectPort = (*int32)(redirect.Port)
+	}
 	return &model.HTTPRequestRedirectFilter{
 		Scheme:     redirect.Scheme,
 		Hostname:   (*string)(redirect.Hostname),
 		Path:       pathModifier,
-		Port:       (*int32)(redirect.Port),
+		Port:       redirectPort,
 		StatusCode: redirect.StatusCode,
 	}
 }
@@ -503,7 +539,7 @@ func toPathMatch(match gatewayv1.HTTPRouteMatch) model.StringMatch {
 }
 
 func toGRPCPathMatch(match gatewayv1alpha2.GRPCRouteMatch) model.StringMatch {
-	if match.Method.Service == nil || match.Method == nil {
+	if match.Method == nil || match.Method.Service == nil {
 		return model.StringMatch{}
 	}
 

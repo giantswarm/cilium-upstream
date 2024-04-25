@@ -234,17 +234,17 @@ func defaultCommands(confDir string, cmdDir string, k8sPods []string) []string {
 func save(c *BugtoolConfiguration, path string) error {
 	f, err := os.Create(path)
 	if err != nil {
-		return fmt.Errorf("Failed to open file %s for writing: %s", path, err)
+		return fmt.Errorf("Failed to open file %s for writing: %w", path, err)
 	}
 	defer f.Close()
 
 	data, err := json.MarshalIndent(c, "", "\t")
 	if err != nil {
-		return fmt.Errorf("Cannot marshal config %s", err)
+		return fmt.Errorf("Cannot marshal config: %w", err)
 	}
 	err = os.WriteFile(path, data, 0644)
 	if err != nil {
-		return fmt.Errorf("Cannot write config %s", err)
+		return fmt.Errorf("Cannot write config: %w", err)
 	}
 	return nil
 }
@@ -268,7 +268,7 @@ func loadConfigFile(path string) (*BugtoolConfiguration, error) {
 func tcInterfaceCommands() ([]string, error) {
 	ifaces, err := net.Interfaces()
 	if err != nil {
-		return nil, fmt.Errorf("could not list network interfaces: %v", err)
+		return nil, fmt.Errorf("could not list network interfaces: %w", err)
 	}
 	commands := []string{}
 	for _, iface := range ifaces {
@@ -285,11 +285,14 @@ func catCommands() []string {
 	files := []string{
 		"/proc/sys/net/core/bpf_jit_enable",
 		"/proc/kallsyms",
+		"/proc/buddyinfo",
+		"/proc/pagetypeinfo",
 		"/etc/resolv.conf",
 		"/var/log/docker.log",
 		"/var/log/daemon.log",
 		"/var/log/messages",
 		"/var/run/cilium/cilium-cni.log",
+		"/proc/sys/kernel/random/boot_id",
 	}
 	// Only print the files that do exist to reduce number of errors in
 	// archive
@@ -382,6 +385,7 @@ func copyCiliumInfoCommands(cmdDir string, k8sPods []string) []string {
 	ciliumCommands := []string{
 		fmt.Sprintf("cilium-dbg debuginfo --output=markdown,json -f --output-directory=%s", cmdDir),
 		"cilium-dbg metrics list",
+		"cilium-dbg bpf metrics list",
 		"cilium-dbg fqdn cache list",
 		"cilium-dbg config -a",
 		"cilium-dbg encrypt status",

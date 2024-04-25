@@ -227,7 +227,8 @@ apply_snat:
 		goto out;
 
 	/* See the equivalent v4 path for comment */
-	ctx_snat_done_set(ctx);
+	if (is_defined(IS_BPF_HOST))
+		ctx_snat_done_set(ctx);
 
 out:
 	if (ret == NAT_PUNT_TO_STACK)
@@ -1031,11 +1032,8 @@ fib_ipv4:
 	return fib_redirect(ctx, true, &fib_params, allow_neigh_map, ext_err, &ifindex);
 }
 
-declare_tailcall_if(__or3(__not(is_defined(HAVE_LARGE_INSN_LIMIT)),
-			  __and(is_defined(ENABLE_HOST_FIREWALL),
-				is_defined(IS_BPF_HOST)),
-			  is_defined(IS_BPF_LXC)),
-		    CILIUM_CALL_IPV6_NODEPORT_REVNAT)
+__section_tail(CILIUM_MAP_CALLS, CILIUM_CALL_IPV6_NODEPORT_REVNAT)
+static __always_inline
 int tail_nodeport_rev_dnat_ingress_ipv6(struct __ctx_buff *ctx)
 {
 	struct trace_ctx trace = {
@@ -1070,7 +1068,8 @@ drop:
 	return send_drop_notify_error_ext(ctx, 0, ret, ext_err, CTX_ACT_DROP, METRIC_EGRESS);
 }
 
-declare_tailcall_if(__not(is_defined(IS_BPF_LXC)), CILIUM_CALL_IPV6_NODEPORT_NAT_INGRESS)
+__section_tail(CILIUM_MAP_CALLS, CILIUM_CALL_IPV6_NODEPORT_NAT_INGRESS)
+static __always_inline
 int tail_nodeport_nat_ingress_ipv6(struct __ctx_buff *ctx)
 {
 	struct ipv6_nat_target target = {
@@ -1145,7 +1144,8 @@ drop_err:
 					  METRIC_INGRESS);
 }
 
-declare_tailcall_if(__not(is_defined(IS_BPF_LXC)), CILIUM_CALL_IPV6_NODEPORT_NAT_EGRESS)
+__section_tail(CILIUM_MAP_CALLS, CILIUM_CALL_IPV6_NODEPORT_NAT_EGRESS)
+static __always_inline
 int tail_nodeport_nat_egress_ipv6(struct __ctx_buff *ctx)
 {
 	const bool nat_46x64 = nat46x64_cb_xlate(ctx);
@@ -1211,7 +1211,9 @@ int tail_nodeport_nat_egress_ipv6(struct __ctx_buff *ctx)
 	if (IS_ERR(ret))
 		goto drop_err;
 
-	ctx_snat_done_set(ctx);
+	if (is_defined(IS_BPF_HOST))
+		ctx_snat_done_set(ctx);
+
 #ifdef TUNNEL_MODE
 	if (tunnel_endpoint) {
 		__be16 src_port;
@@ -1470,8 +1472,8 @@ redo:
 }
 
 static __always_inline int
-nodeport_rev_dnat_fwd_ipv6(struct __ctx_buff *ctx, struct trace_ctx *trace,
-			   __s8 *ext_err __maybe_unused)
+nodeport_rev_dnat_fwd_ipv6(struct __ctx_buff *ctx, bool *snat_done,
+			   struct trace_ctx *trace, __s8 *ext_err __maybe_unused)
 {
 	struct bpf_fib_lookup_padded fib_params __maybe_unused = {};
 	struct lb6_reverse_nat *nat_info;
@@ -1519,7 +1521,7 @@ nodeport_rev_dnat_fwd_ipv6(struct __ctx_buff *ctx, struct trace_ctx *trace,
 		if (IS_ERR(ret))
 			return ret;
 
-		ctx_snat_done_set(ctx);
+		*snat_done = true;
 	}
 
 	return CTX_ACT_OK;
@@ -1566,20 +1568,24 @@ static __always_inline int
 __handle_nat_fwd_ipv6(struct __ctx_buff *ctx, struct trace_ctx *trace,
 		      __s8 *ext_err)
 {
+	bool snat_done = false;
 	int ret;
 
-	ret = nodeport_rev_dnat_fwd_ipv6(ctx, trace, ext_err);
+	ret = nodeport_rev_dnat_fwd_ipv6(ctx, &snat_done, trace, ext_err);
 	if (ret != CTX_ACT_OK)
 		return ret;
 
 #if !defined(ENABLE_DSR) ||						\
     (defined(ENABLE_DSR) && defined(ENABLE_DSR_HYBRID)) ||		\
      defined(ENABLE_MASQUERADE_IPV6)
-	if (!ctx_snat_done(ctx)) {
+	if (!snat_done) {
 		ep_tail_call(ctx, CILIUM_CALL_IPV6_NODEPORT_SNAT_FWD);
 		ret = DROP_MISSED_TAIL_CALL;
 	}
 #endif
+
+	if (is_defined(IS_BPF_HOST) && snat_done)
+		ctx_snat_done_set(ctx);
 
 	return ret;
 }
@@ -1591,11 +1597,8 @@ handle_nat_fwd_ipv6(struct __ctx_buff *ctx, struct trace_ctx *trace,
 	return __handle_nat_fwd_ipv6(ctx, trace, ext_err);
 }
 
-declare_tailcall_if(__or(__and(is_defined(ENABLE_IPV4),
-			       is_defined(ENABLE_IPV6)),
-			 __and(is_defined(ENABLE_HOST_FIREWALL),
-			       is_defined(IS_BPF_HOST))),
-		    CILIUM_CALL_IPV6_NODEPORT_NAT_FWD)
+__section_tail(CILIUM_MAP_CALLS, CILIUM_CALL_IPV6_NODEPORT_NAT_FWD)
+static __always_inline
 int tail_handle_nat_fwd_ipv6(struct __ctx_buff *ctx)
 {
 	struct trace_ctx trace = {
@@ -1708,8 +1711,13 @@ apply_snat:
 	/* If multiple netdevs process an outgoing packet, then this packets will
 	 * be handled multiple times by the "to-netdev" section. This can lead
 	 * to multiple SNATs. To prevent from that, set the SNAT done flag.
+	 *
+	 * XDP doesn't need the flag (there's no egress prog that would utilize it),
+	 * and for overlay traffic it makes no difference whether the inner packet
+	 * was SNATed.
 	 */
-	ctx_snat_done_set(ctx);
+	if (is_defined(IS_BPF_HOST))
+		ctx_snat_done_set(ctx);
 
 #if defined(ENABLE_EGRESS_GATEWAY_COMMON) && defined(IS_BPF_HOST)
 	if (target.egress_gateway)
@@ -2506,11 +2514,8 @@ redirect:
 	return fib_redirect(ctx, true, &fib_params, allow_neigh_map, ext_err, &ifindex);
 }
 
-declare_tailcall_if(__or3(__not(is_defined(HAVE_LARGE_INSN_LIMIT)),
-			  __and(is_defined(ENABLE_HOST_FIREWALL),
-				is_defined(IS_BPF_HOST)),
-			  is_defined(IS_BPF_LXC)),
-		    CILIUM_CALL_IPV4_NODEPORT_REVNAT)
+__section_tail(CILIUM_MAP_CALLS, CILIUM_CALL_IPV4_NODEPORT_REVNAT)
+static __always_inline
 int tail_nodeport_rev_dnat_ingress_ipv4(struct __ctx_buff *ctx)
 {
 	struct trace_ctx trace = {
@@ -2547,7 +2552,8 @@ drop_err:
 					  CTX_ACT_DROP, METRIC_EGRESS);
 }
 
-declare_tailcall_if(__not(is_defined(IS_BPF_LXC)), CILIUM_CALL_IPV4_NODEPORT_NAT_INGRESS)
+__section_tail(CILIUM_MAP_CALLS, CILIUM_CALL_IPV4_NODEPORT_NAT_INGRESS)
+static __always_inline
 int tail_nodeport_nat_ingress_ipv4(struct __ctx_buff *ctx)
 {
 	struct ipv4_nat_target target = {
@@ -2638,7 +2644,8 @@ drop_err:
 					  METRIC_INGRESS);
 }
 
-declare_tailcall_if(__not(is_defined(IS_BPF_LXC)), CILIUM_CALL_IPV4_NODEPORT_NAT_EGRESS)
+__section_tail(CILIUM_MAP_CALLS, CILIUM_CALL_IPV4_NODEPORT_NAT_EGRESS)
+static __always_inline
 int tail_nodeport_nat_egress_ipv4(struct __ctx_buff *ctx)
 {
 	struct bpf_fib_lookup_padded fib_params = {
@@ -2709,7 +2716,9 @@ int tail_nodeport_nat_egress_ipv4(struct __ctx_buff *ctx)
 	if (IS_ERR(ret))
 		goto drop_err;
 
-	ctx_snat_done_set(ctx);
+	if (is_defined(IS_BPF_HOST))
+		ctx_snat_done_set(ctx);
+
 #ifdef TUNNEL_MODE
 	if (tunnel_endpoint) {
 		__be16 src_port;
@@ -2989,8 +2998,8 @@ redo:
 }
 
 static __always_inline int
-nodeport_rev_dnat_fwd_ipv4(struct __ctx_buff *ctx, struct trace_ctx *trace,
-			   __s8 *ext_err __maybe_unused)
+nodeport_rev_dnat_fwd_ipv4(struct __ctx_buff *ctx, bool *snat_done,
+			   struct trace_ctx *trace, __s8 *ext_err __maybe_unused)
 {
 	struct bpf_fib_lookup_padded fib_params __maybe_unused = {};
 	int ret, l3_off = ETH_HLEN, l4_off;
@@ -3051,7 +3060,7 @@ nodeport_rev_dnat_fwd_ipv4(struct __ctx_buff *ctx, struct trace_ctx *trace,
 		if (IS_ERR(ret))
 			return ret;
 
-		ctx_snat_done_set(ctx);
+		*snat_done = true;
 
 #ifdef ENABLE_DSR
  #if defined(ENABLE_HIGH_SCALE_IPCACHE) &&				\
@@ -3121,9 +3130,10 @@ static __always_inline int
 __handle_nat_fwd_ipv4(struct __ctx_buff *ctx, __u32 cluster_id __maybe_unused,
 		      struct trace_ctx *trace, __s8 *ext_err)
 {
+	bool snat_done = false;
 	int ret;
 
-	ret = nodeport_rev_dnat_fwd_ipv4(ctx, trace, ext_err);
+	ret = nodeport_rev_dnat_fwd_ipv4(ctx, &snat_done, trace, ext_err);
 	if (ret != CTX_ACT_OK)
 		return ret;
 
@@ -3131,12 +3141,15 @@ __handle_nat_fwd_ipv4(struct __ctx_buff *ctx, __u32 cluster_id __maybe_unused,
     (defined(ENABLE_DSR) && defined(ENABLE_DSR_HYBRID)) ||		\
      defined(ENABLE_MASQUERADE_IPV4) ||					\
     (defined(ENABLE_CLUSTER_AWARE_ADDRESSING) && defined(ENABLE_INTER_CLUSTER_SNAT))
-	if (!ctx_snat_done(ctx)) {
+	if (!snat_done) {
 		ctx_store_meta(ctx, CB_CLUSTER_ID_EGRESS, cluster_id);
 		ep_tail_call(ctx, CILIUM_CALL_IPV4_NODEPORT_SNAT_FWD);
 		ret = DROP_MISSED_TAIL_CALL;
 	}
 #endif
+
+	if (is_defined(IS_BPF_HOST) && snat_done)
+		ctx_snat_done_set(ctx);
 
 	return ret;
 }
@@ -3152,15 +3165,8 @@ handle_nat_fwd_ipv4(struct __ctx_buff *ctx, struct trace_ctx *trace,
 	return __handle_nat_fwd_ipv4(ctx, cluster_id, trace, ext_err);
 }
 
-declare_tailcall_if(__or4(__and(is_defined(ENABLE_IPV4),
-				is_defined(ENABLE_IPV6)),
-			  __and(is_defined(ENABLE_HOST_FIREWALL),
-				is_defined(IS_BPF_HOST)),
-			  __and(is_defined(ENABLE_CLUSTER_AWARE_ADDRESSING),
-				is_defined(ENABLE_INTER_CLUSTER_SNAT)),
-			  __and(is_defined(ENABLE_EGRESS_GATEWAY_COMMON),
-				is_defined(IS_BPF_HOST))),
-		    CILIUM_CALL_IPV4_NODEPORT_NAT_FWD)
+__section_tail(CILIUM_MAP_CALLS, CILIUM_CALL_IPV4_NODEPORT_NAT_FWD)
+static __always_inline
 int tail_handle_nat_fwd_ipv4(struct __ctx_buff *ctx)
 {
 	struct trace_ctx trace = {

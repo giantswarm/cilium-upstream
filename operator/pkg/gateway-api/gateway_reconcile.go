@@ -309,8 +309,8 @@ func isAttachable(_ context.Context, gw *gatewayv1.Gateway, route metav1.Object,
 func (r *gatewayReconciler) setAddressStatus(ctx context.Context, gw *gatewayv1.Gateway) error {
 	svcList := &corev1.ServiceList{}
 	if err := r.Client.List(ctx, svcList, client.MatchingLabels{
-		owningGatewayLabel: gw.GetName(),
-	}); err != nil {
+		owningGatewayLabel: model.Shorten(gw.GetName()),
+	}, client.InNamespace(gw.GetNamespace())); err != nil {
 		return err
 	}
 
@@ -518,7 +518,7 @@ func isValidPemFormat(b []byte) bool {
 
 func (r *gatewayReconciler) handleReconcileErrorWithStatus(ctx context.Context, reconcileErr error, original *gatewayv1.Gateway, modified *gatewayv1.Gateway) (ctrl.Result, error) {
 	if err := r.updateStatus(ctx, original, modified); err != nil {
-		return controllerruntime.Fail(fmt.Errorf("failed to update Gateway status while handling the reconcile error %w: %w", reconcileErr, err))
+		return controllerruntime.Fail(fmt.Errorf("failed to update Gateway status while handling the reconcile error: %w: %w", reconcileErr, err))
 	}
 
 	return controllerruntime.Fail(reconcileErr)

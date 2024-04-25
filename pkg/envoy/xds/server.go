@@ -261,7 +261,7 @@ func (s *Server) processRequestStream(ctx context.Context, streamLog *logrus.Ent
 		switch chosen {
 		case doneChIndex: // Context got canceled, most likely by the client terminating.
 			streamLog.WithError(ctx.Err()).Debug("xDS stream context canceled")
-			return ctx.Err()
+			return nil
 
 		case reqChIndex: // Request received from the stream.
 			if !recvOK {
@@ -326,6 +326,11 @@ func (s *Server) processRequestStream(ctx context.Context, streamLog *logrus.Ent
 
 			state := &typeStates[index]
 			watcher := s.watchers[typeURL]
+
+			if nonce == 0 && versionInfo > 0 {
+				requestLog.Debugf("xDS was restarted, setting nonce to %d", versionInfo)
+				nonce = versionInfo
+			}
 
 			// Response nonce is always the same as the response version.
 			// Request version indicates the last acked version. If the

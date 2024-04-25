@@ -29,6 +29,7 @@ import (
 	"github.com/cilium/cilium/pkg/maps/tunnel"
 	"github.com/cilium/cilium/pkg/mtu"
 	"github.com/cilium/cilium/pkg/netns"
+	"github.com/cilium/cilium/pkg/node"
 	nodeaddressing "github.com/cilium/cilium/pkg/node/addressing"
 	"github.com/cilium/cilium/pkg/node/types"
 	nodeTypes "github.com/cilium/cilium/pkg/node/types"
@@ -94,6 +95,8 @@ func (s *linuxPrivilegedBaseTestSuite) SetUpTest(c *check.C, addressing datapath
 	s.enableIPv6 = enableIPv6
 	s.enableIPv4 = enableIPv4
 
+	node.SetTestLocalNodeStore()
+
 	removeDevice(dummyHostDeviceName)
 	removeDevice(dummyExternalDeviceName)
 
@@ -139,6 +142,7 @@ func (s *linuxPrivilegedIPv4AndIPv6TestSuite) SetUpTest(c *check.C) {
 
 func tearDownTest(c *check.C) {
 	ipsec.DeleteXfrm()
+	node.UnsetTestLocalNodeStore()
 	removeDevice(dummyHostDeviceName)
 	removeDevice(dummyExternalDeviceName)
 	err := tunnel.TunnelMap().Unpin()
@@ -742,6 +746,7 @@ func (s *linuxPrivilegedIPv4OnlyTestSuite) TestNodeChurnXFRMLeaks(c *check.C) {
 	c.Assert(err, check.IsNil)
 	defer removeDevice(externalNodeDevice)
 	option.Config.EncryptInterface = []string{externalNodeDevice}
+	option.Config.RoutingMode = option.RoutingModeNative
 
 	// Cover the XFRM configuration for subnet encryption: IPAM modes AKS and EKS.
 	_, ipv4PodSubnets, err := net.ParseCIDR("4.4.0.0/16")
@@ -776,6 +781,7 @@ func (s *linuxPrivilegedBaseTestSuite) testNodeChurnXFRMLeaksWithConfig(c *check
 		},
 		IPv4AllocCIDR: cidr.MustParseCIDR("4.4.4.0/24"),
 		IPv6AllocCIDR: cidr.MustParseCIDR("2001:aaaa::/96"),
+		BootID:        "test-boot-id",
 	}
 	err = linuxNodeHandler.NodeAdd(node)
 	c.Assert(err, check.IsNil)
@@ -799,12 +805,15 @@ func (s *linuxPrivilegedBaseTestSuite) testNodeChurnXFRMLeaksWithConfig(c *check
 	c.Assert(countXFRMPolicies(policies), check.Equals, 0)
 }
 
-// Counts the number of XFRM policies excluding the catch-all default-drop one.
-// That one is always installed and shouldn't be removed.
+// Counts the number of XFRM OUT policies excluding the catch-all default-drop
+// one. The default-drop is always installed and shouldn't be removed. The IN
+// and FWD policies are installed once and for all in reaction to new nodes;
+// contrary to XFRM IN states, they don't need to be unique per remote node.
 func countXFRMPolicies(policies []netlink.XfrmPolicy) int {
 	nbPolicies := 0
 	for _, policy := range policies {
-		if policy.Action != netlink.XFRM_POLICY_BLOCK {
+		if policy.Action != netlink.XFRM_POLICY_BLOCK &&
+			policy.Dir == netlink.XFRM_DIR_OUT {
 			nbPolicies++
 		}
 	}

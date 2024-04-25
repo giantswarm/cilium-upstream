@@ -18,6 +18,7 @@ import (
 	"github.com/sirupsen/logrus"
 	"github.com/vishvananda/netlink"
 
+	"github.com/cilium/cilium/daemon/cmd/cni"
 	"github.com/cilium/cilium/pkg/backoff"
 	"github.com/cilium/cilium/pkg/byteorder"
 	"github.com/cilium/cilium/pkg/cidr"
@@ -269,7 +270,7 @@ type Manager struct {
 	haveSocketMatch      bool
 	haveBPFSocketAssign  bool
 	ipEarlyDemuxDisabled bool
-	CNIChainingMode      string
+	cniConfigManager     cni.CNIConfigManager
 }
 
 type params struct {
@@ -278,7 +279,8 @@ type params struct {
 	Logger    logrus.FieldLogger
 	Lifecycle cell.Lifecycle
 
-	ModulesMgr *modules.Manager
+	ModulesMgr       *modules.Manager
+	CNIConfigManager cni.CNIConfigManager
 
 	Cfg       Config
 	SharedCfg SharedConfig
@@ -286,11 +288,12 @@ type params struct {
 
 func newIptablesManager(p params) *Manager {
 	iptMgr := &Manager{
-		logger:        p.Logger,
-		modulesMgr:    p.ModulesMgr,
-		cfg:           p.Cfg,
-		sharedCfg:     p.SharedCfg,
-		haveIp6tables: true,
+		logger:           p.Logger,
+		modulesMgr:       p.ModulesMgr,
+		cfg:              p.Cfg,
+		sharedCfg:        p.SharedCfg,
+		haveIp6tables:    true,
+		cniConfigManager: p.CNIConfigManager,
 	}
 
 	p.Lifecycle.Append(iptMgr)
@@ -307,6 +310,10 @@ func (m *Manager) Start(ctx cell.HookContext) error {
 
 	if err := enableIPForwarding(m.sharedCfg.EnableIPv6); err != nil {
 		m.logger.WithError(err).Warning("enabling IP forwarding via sysctl failed")
+	}
+
+	if m.sharedCfg.EnableIPSec && m.sharedCfg.EnableL7Proxy {
+		m.DisableIPEarlyDemux()
 	}
 
 	if err := m.modulesMgr.FindOrLoadModules(
@@ -364,14 +371,7 @@ func (m *Manager) Start(ctx cell.HookContext) error {
 			m.logger.WithError(err).Warning("xt_socket kernel module could not be loaded")
 
 			if m.sharedCfg.EnableXTSocketFallback {
-				disabled := sysctl.Disable("net.ipv4.ip_early_demux") == nil
-
-				if disabled {
-					m.ipEarlyDemuxDisabled = true
-					m.logger.Warning("Disabled ip_early_demux to allow proxy redirection with original source/destination address without xt_socket support also in non-tunneled datapath modes.")
-				} else {
-					m.logger.WithError(err).Warning("Could not disable ip_early_demux, traffic redirected due to an HTTP policy or visibility may be dropped unexpectedly")
-				}
+				m.DisableIPEarlyDemux()
 			}
 		}
 	} else {
@@ -389,6 +389,20 @@ func (m *Manager) Stop(ctx cell.HookContext) error {
 	return nil
 }
 
+func (m *Manager) DisableIPEarlyDemux() {
+	if m.ipEarlyDemuxDisabled {
+		return
+	}
+
+	err := sysctl.Disable("net.ipv4.ip_early_demux")
+	if err == nil {
+		m.ipEarlyDemuxDisabled = true
+		m.logger.Info("Disabled ip_early_demux to allow proxy redirection.")
+	} else {
+		m.logger.WithError(err).Warning("Could not disable ip_early_demux, traffic redirected due to an HTTP policy or visibility may be dropped unexpectedly")
+	}
+}
+
 // SupportsOriginalSourceAddr tells if an L7 proxy can use POD's original source address and port in
 // the upstream connection to allow the destination to properly derive the source security ID from
 // the source IP address.
@@ -396,7 +410,7 @@ func (m *Manager) SupportsOriginalSourceAddr() bool {
 	// Original source address use works if xt_socket match is supported, or if ip early demux
 	// is disabled, but it is not needed when tunneling is used as the tunnel header carries
 	// the source security ID.
-	return (m.haveSocketMatch || m.ipEarlyDemuxDisabled) && !m.sharedCfg.TunnelingEnabled
+	return (m.haveSocketMatch || m.ipEarlyDemuxDisabled) && (!m.sharedCfg.TunnelingEnabled || m.sharedCfg.EnableIPSec)
 }
 
 // removeRules removes iptables rules installed by Cilium.
@@ -461,10 +475,12 @@ func (m *Manager) inboundProxyRedirectRule(cmd string) []string {
 	// 2. route original direction traffic that would otherwise be intercepted
 	//    by ip_early_demux
 	toProxyMark := fmt.Sprintf("%#08x", linux_defaults.MagicMarkIsToProxy)
+	matchFromIPSecEncrypt := fmt.Sprintf("%#08x/%#08x", linux_defaults.RouteMarkEncrypt, linux_defaults.RouteMarkMask)
 	return []string{
 		"-t", "mangle",
 		cmd, ciliumPreMangleChain,
 		"-m", "socket", "--transparent",
+		"-m", "mark", "!", "--mark", matchFromIPSecEncrypt,
 		"-m", "comment", "--comment", "cilium: any->pod redirect proxied traffic to host proxy",
 		"-j", "MARK",
 		"--set-mark", toProxyMark}
@@ -525,6 +541,8 @@ func (m *Manager) installStaticProxyRules() error {
 	matchProxyReply := fmt.Sprintf("%#08x/%#08x", linux_defaults.MagicMarkIsProxy, linux_defaults.MagicMarkProxyNoIDMask)
 	// L7 proxy upstream return traffic has Endpoint ID in the mask
 	matchL7ProxyUpstream := fmt.Sprintf("%#08x/%#08x", linux_defaults.MagicMarkIsProxyEPID, linux_defaults.MagicMarkProxyMask)
+	// match traffic from a proxy (either in forward or in return direction)
+	matchFromProxy := fmt.Sprintf("%#08x/%#08x", linux_defaults.MagicMarkIsProxy, linux_defaults.MagicMarkProxyMask)
 
 	if m.sharedCfg.EnableIPv4 {
 		// No conntrack for traffic to proxy
@@ -597,8 +615,8 @@ func (m *Manager) installStaticProxyRules() error {
 		if err := ip4tables.runProg([]string{
 			"-t", "filter",
 			"-A", ciliumOutputChain,
-			"-m", "mark", "--mark", matchProxyReply,
-			"-m", "comment", "--comment", "cilium: ACCEPT for proxy return traffic",
+			"-m", "mark", "--mark", matchFromProxy,
+			"-m", "comment", "--comment", "cilium: ACCEPT for proxy traffic",
 			"-j", "ACCEPT"}); err != nil {
 			return err
 		}
@@ -671,8 +689,8 @@ func (m *Manager) installStaticProxyRules() error {
 		if err := ip6tables.runProg([]string{
 			"-t", "filter",
 			"-A", ciliumOutputChain,
-			"-m", "mark", "--mark", matchProxyReply,
-			"-m", "comment", "--comment", "cilium: ACCEPT for proxy return traffic",
+			"-m", "mark", "--mark", matchFromProxy,
+			"-m", "comment", "--comment", "cilium: ACCEPT for proxy traffic",
 			"-j", "ACCEPT"}); err != nil {
 			return err
 		}
@@ -1074,7 +1092,7 @@ func (m *Manager) getDeliveryInterface(ifName string) string {
 	switch {
 	case m.sharedCfg.EnableEndpointRoutes:
 		// aws-cni creates container interfaces with names like eni621c0fc8425.
-		if m.CNIChainingMode == "aws-cni" {
+		if m.cniConfigManager.GetChainingMode() == "aws-cni" {
 			return "eni+"
 		}
 		return "lxc+"
@@ -1510,6 +1528,7 @@ func (m *Manager) installHostTrafficMarkRule(prog iptablesInterface) error {
 	// originated from the host.
 	matchFromIPSecEncrypt := fmt.Sprintf("%#08x/%#08x", linux_defaults.RouteMarkDecrypt, linux_defaults.RouteMarkMask)
 	matchFromIPSecDecrypt := fmt.Sprintf("%#08x/%#08x", linux_defaults.RouteMarkEncrypt, linux_defaults.RouteMarkMask)
+	matchOverlay := fmt.Sprintf("%#08x/%#08x", linux_defaults.MagicMarkOverlay, linux_defaults.MagicMarkHostMask)
 	matchFromProxy := fmt.Sprintf("%#08x/%#08x", linux_defaults.MagicMarkIsProxy, linux_defaults.MagicMarkProxyMask)
 	matchFromProxyEPID := fmt.Sprintf("%#08x/%#08x", linux_defaults.MagicMarkIsProxyEPID, linux_defaults.MagicMarkProxyMask)
 	matchFromDNSProxy := fmt.Sprintf("%#08x/%#08x", linux_defaults.MagicMarkIdentity, linux_defaults.MagicMarkHostMask)
@@ -1520,6 +1539,7 @@ func (m *Manager) installHostTrafficMarkRule(prog iptablesInterface) error {
 		"-A", ciliumOutputChain,
 		"-m", "mark", "!", "--mark", matchFromIPSecDecrypt, // Don't match ipsec traffic
 		"-m", "mark", "!", "--mark", matchFromIPSecEncrypt, // Don't match ipsec traffic
+		"-m", "mark", "!", "--mark", matchOverlay, // Don't match Cilium's overlay traffic
 		"-m", "mark", "!", "--mark", matchFromProxy, // Don't match proxy traffic
 		"-m", "mark", "!", "--mark", matchFromProxyEPID, // Don't match proxy traffic
 		"-m", "mark", "!", "--mark", matchFromDNSProxy, // Don't match DNS proxy egress traffic
@@ -1692,7 +1712,7 @@ func (m *Manager) installRules(ifName string) error {
 
 	if m.sharedCfg.EnableIPSec {
 		if err := m.addCiliumNoTrackXfrmRules(); err != nil {
-			return fmt.Errorf("cannot install xfrm rules: %s", err)
+			return fmt.Errorf("cannot install xfrm rules: %w", err)
 		}
 	}
 

@@ -58,6 +58,7 @@ import (
 	"github.com/cilium/cilium/pkg/time"
 	"github.com/cilium/cilium/pkg/trigger"
 	"github.com/cilium/cilium/pkg/types"
+	"github.com/cilium/cilium/pkg/u8proto"
 )
 
 const (
@@ -233,8 +234,16 @@ type Endpoint struct {
 	status *EndpointStatus
 
 	// DNSRules is the collection of current endpoint-specific DNS proxy
-	// rules. These can be restored during Cilium restart.
+	// rules that conform to using restore.PortProto V1 (that is, they do
+	// **not** take protocol into account). These can be restored during
+	// Cilium restart.
+	// TODO: This can be removed when 1.16 is deprecated.
 	DNSRules restore.DNSRules
+
+	// DNSRulesV2 is the collection of current endpoint-specific DNS proxy
+	// rules that conform to using restore.PortProto V2 (that is, they take
+	// protocol into account). These can be restored during Cilium restart.
+	DNSRulesV2 restore.DNSRules
 
 	// DNSHistory is the collection of still-valid DNS responses intercepted for
 	// this endpoint.
@@ -488,7 +497,7 @@ func (e *Endpoint) waitForProxyCompletions(proxyWaitGroup *completion.WaitGroup)
 
 	err := proxyWaitGroup.Context().Err()
 	if err != nil {
-		return fmt.Errorf("context cancelled before waiting for proxy updates: %s", err)
+		return fmt.Errorf("context cancelled before waiting for proxy updates: %w", err)
 	}
 
 	start := time.Now()
@@ -496,7 +505,7 @@ func (e *Endpoint) waitForProxyCompletions(proxyWaitGroup *completion.WaitGroup)
 	e.getLogger().Debug("Waiting for proxy updates to complete...")
 	err = proxyWaitGroup.Wait()
 	if err != nil {
-		return fmt.Errorf("proxy state changes failed: %s", err)
+		return fmt.Errorf("proxy state changes failed: %w", err)
 	}
 	e.getLogger().Debug("Wait time for proxy updates: ", time.Since(start))
 
@@ -528,6 +537,7 @@ func createEndpoint(owner regeneration.Owner, policyGetter policyRepoGetter, nam
 		ifName:           ifName,
 		OpLabels:         labels.NewOpLabels(),
 		DNSRules:         nil,
+		DNSRulesV2:       nil,
 		DNSHistory:       fqdn.NewDNSCacheWithLimit(option.Config.ToFQDNsMinTTL, option.Config.ToFQDNsMaxIPsPerHost),
 		DNSZombies:       fqdn.NewDNSZombieMappings(option.Config.ToFQDNsMaxDeferredConnectionDeletes, option.Config.ToFQDNsMaxIPsPerHost),
 		state:            "",
@@ -869,7 +879,7 @@ func parseBase64ToEndpoint(b []byte, ep *Endpoint) error {
 	}
 
 	if err := json.Unmarshal(jsonBytes[:n], ep); err != nil {
-		return fmt.Errorf("error unmarshaling serializableEndpoint from base64 representation: %s", err)
+		return fmt.Errorf("error unmarshaling serializableEndpoint from base64 representation: %w", err)
 	}
 
 	return nil
@@ -907,7 +917,7 @@ func parseEndpoint(ctx context.Context, owner regeneration.Owner, policyGetter p
 	}
 
 	if err := parseBase64ToEndpoint(epSlice[1], &ep); err != nil {
-		return nil, fmt.Errorf("failed to parse restored endpoint: %s", err)
+		return nil, fmt.Errorf("failed to parse restored endpoint: %w", err)
 	}
 
 	ep.initDNSHistoryTrigger()
@@ -1201,7 +1211,7 @@ type DeleteConfig struct {
 // which depends on kvstore connectivity must be protected by a flag in
 // DeleteConfig and the restore logic must opt-out of it.
 func (e *Endpoint) leaveLocked(proxyWaitGroup *completion.WaitGroup, conf DeleteConfig) []error {
-	errors := []error{}
+	errs := []error{}
 
 	if !option.Config.DryMode {
 		e.owner.Datapath().Loader().Unload(e.createEpInfoCache(""))
@@ -1224,7 +1234,7 @@ func (e *Endpoint) leaveLocked(proxyWaitGroup *completion.WaitGroup, conf Delete
 
 	if e.policyMap != nil {
 		if err := e.policyMap.Close(); err != nil {
-			errors = append(errors, fmt.Errorf("unable to close policymap %s: %s", e.policyMap.String(), err))
+			errs = append(errs, fmt.Errorf("unable to close policymap %s: %w", e.policyMap.String(), err))
 		}
 	}
 
@@ -1241,7 +1251,7 @@ func (e *Endpoint) leaveLocked(proxyWaitGroup *completion.WaitGroup, conf Delete
 
 		_, err := e.allocator.Release(releaseCtx, e.SecurityIdentity, false)
 		if err != nil {
-			errors = append(errors, fmt.Errorf("unable to release identity: %s", err))
+			errs = append(errs, fmt.Errorf("unable to release identity: %w", err))
 		}
 		e.removeNetworkPolicy()
 		e.SecurityIdentity = nil
@@ -1266,7 +1276,7 @@ func (e *Endpoint) leaveLocked(proxyWaitGroup *completion.WaitGroup, conf Delete
 	endpointPolicyStatus.Remove(e.ID)
 	e.getLogger().Info("Removed endpoint")
 
-	return errors
+	return errs
 }
 
 // GetK8sNamespace returns the name of the pod if the endpoint represents a
@@ -1527,7 +1537,16 @@ func (e *Endpoint) OnProxyPolicyUpdate(revision uint64) {
 
 // OnDNSPolicyUpdateLocked is called when the Endpoint's DNS policy has been updated
 func (e *Endpoint) OnDNSPolicyUpdateLocked(rules restore.DNSRules) {
-	e.DNSRules = rules
+	e.DNSRulesV2 = rules
+	// Keep V1 in tact in case of a downgrade.
+	e.DNSRules = make(restore.DNSRules)
+	for pp, rules := range rules {
+		proto := pp.Protocol()
+		// Filter out non-UDP/TCP protocol
+		if proto == uint8(u8proto.TCP) || proto == uint8(u8proto.UDP) {
+			e.DNSRules[pp.ToV1()] = rules
+		}
+	}
 }
 
 // getProxyStatisticsLocked gets the ProxyStatistics for the flows with the
@@ -1952,6 +1971,26 @@ func (e *Endpoint) UpdateLabels(ctx context.Context, sourceFilter string, identi
 	e.replaceInformationLabels(sourceFilter, infoLabels)
 	// replace identity labels and update the identity if labels have changed
 	rev := e.replaceIdentityLabels(sourceFilter, identityLabels)
+
+	// If the endpoint is in an 'init' state we need to remove this label
+	// regardless of the "sourceFilter". Otherwise, we face risk of leaving the
+	// endpoint with the reserved:init state forever.
+	// We will perform the replacement only if:
+	// - there are new identity labels being added;
+	// - the sourceFilter is not any; If it is "any" then it was already
+	//   replaced by the previous replaceIdentityLabels call.
+	// - the new identity labels don't contain the reserved:init label
+	// - the endpoint is in this init state.
+	if len(identityLabels) != 0 &&
+		sourceFilter != labels.LabelSourceAny &&
+		!identityLabels.Has(labels.NewLabel(labels.IDNameInit, "", labels.LabelSourceReserved)) &&
+		e.IsInit() {
+
+		idLabls := e.OpLabels.IdentityLabels()
+		delete(idLabls, labels.IDNameInit)
+		rev = e.replaceIdentityLabels(labels.LabelSourceAny, idLabls)
+	}
+
 	e.unlock()
 	if rev != 0 {
 		return e.runIdentityResolver(ctx, rev, blocking)
@@ -2011,14 +2050,12 @@ func (e *Endpoint) runIdentityResolver(ctx context.Context, myChangeRev int, blo
 	if blocking || identity.IdentityAllocationIsLocal(newLabels) {
 		scopedLog.Info("Resolving identity labels (blocking)")
 		regenTriggered, err = e.identityLabelsChanged(ctx, myChangeRev)
-		switch err {
-		case ErrNotAlive:
-			scopedLog.Debug("not changing endpoint identity because endpoint is in process of being removed")
-			return false
-		default:
-			if err != nil {
-				scopedLog.WithError(err).Warn("Error changing endpoint identity")
+		if err != nil {
+			if errors.Is(err, ErrNotAlive) {
+				scopedLog.Debug("not changing endpoint identity because endpoint is in process of being removed")
+				return false
 			}
+			scopedLog.WithError(err).Warn("Error changing endpoint identity")
 		}
 	} else {
 		scopedLog.Info("Resolving identity labels (non-blocking)")
@@ -2030,13 +2067,11 @@ func (e *Endpoint) runIdentityResolver(ctx context.Context, myChangeRev int, blo
 			Group: resolveIdentityControllerGroup,
 			DoFunc: func(ctx context.Context) error {
 				_, err := e.identityLabelsChanged(ctx, myChangeRev)
-				switch err {
-				case ErrNotAlive:
+				if errors.Is(err, ErrNotAlive) {
 					e.getLogger().Debug("not changing endpoint identity because endpoint is in process of being removed")
 					return controller.NewExitReason("Endpoint disappeared")
-				default:
-					return err
 				}
+				return err
 			},
 			RunInterval: 5 * time.Minute,
 			Context:     e.aliveCtx,
@@ -2092,7 +2127,7 @@ func (e *Endpoint) identityLabelsChanged(ctx context.Context, myChangeRev int) (
 	notifySelectorCache := true
 	allocatedIdentity, _, err := e.allocator.AllocateIdentity(allocateCtx, newLabels, notifySelectorCache, identity.InvalidIdentity)
 	if err != nil {
-		err = fmt.Errorf("unable to resolve identity: %s", err)
+		err = fmt.Errorf("unable to resolve identity: %w", err)
 		e.LogStatus(Other, Warning, err.Error()+" (will retry)")
 		return false, err
 	}
@@ -2397,7 +2432,7 @@ func (e *Endpoint) Delete(conf DeleteConfig) []error {
 		// expected, then the rules will be left as-is because there was
 		// likely manual intervention.
 		if err := linuxrouting.Delete(e.IPv4, option.Config.EgressMultiHomeIPRuleCompat); err != nil {
-			errs = append(errs, fmt.Errorf("unable to delete endpoint routing rules: %s", err))
+			errs = append(errs, fmt.Errorf("unable to delete endpoint routing rules: %w", err))
 		}
 	}
 
@@ -2409,12 +2444,12 @@ func (e *Endpoint) Delete(conf DeleteConfig) []error {
 
 		if e.IPv4.IsValid() {
 			if err := e.owner.Datapath().RemoveNoTrackRules(e.IPv4.String(), e.noTrackPort, false); err != nil {
-				errs = append(errs, fmt.Errorf("unable to delete endpoint NOTRACK ipv4 rules: %s", err))
+				errs = append(errs, fmt.Errorf("unable to delete endpoint NOTRACK ipv4 rules: %w", err))
 			}
 		}
 		if e.IPv6.IsValid() {
 			if err := e.owner.Datapath().RemoveNoTrackRules(e.IPv6.String(), e.noTrackPort, true); err != nil {
-				errs = append(errs, fmt.Errorf("unable to delete endpoint NOTRACK ipv6 rules: %s", err))
+				errs = append(errs, fmt.Errorf("unable to delete endpoint NOTRACK ipv6 rules: %w", err))
 			}
 		}
 	}
@@ -2427,7 +2462,7 @@ func (e *Endpoint) Delete(conf DeleteConfig) []error {
 
 	err := e.waitForProxyCompletions(proxyWaitGroup)
 	if err != nil {
-		errs = append(errs, fmt.Errorf("unable to remove proxy redirects: %s", err))
+		errs = append(errs, fmt.Errorf("unable to remove proxy redirects: %w", err))
 	}
 	cancel()
 

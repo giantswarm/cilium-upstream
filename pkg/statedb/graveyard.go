@@ -24,7 +24,13 @@ func graveyardWorker(db *DB, ctx context.Context, gcRateLimitInterval time.Durat
 	defer limiter.Stop()
 	defer close(db.gcExited)
 
-	for range db.gcTrigger {
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-db.gcTrigger:
+		}
+
 		// Throttle garbage collection.
 		if err := limiter.Wait(ctx); err != nil {
 			return
@@ -60,7 +66,7 @@ func graveyardWorker(db *DB, ctx context.Context, gcRateLimitInterval time.Durat
 			// to the low watermark.
 			indexTree := txn.mustIndexReadTxn(tableName, GraveyardRevisionIndex)
 
-			objIter := indexTree.txn.Root().Iterator()
+			objIter := indexTree.Root().Iterator()
 			for key, obj, ok := objIter.Next(); ok; key, obj, ok = objIter.Next() {
 				if obj.revision > lowWatermark {
 					break
@@ -86,12 +92,12 @@ func graveyardWorker(db *DB, ctx context.Context, gcRateLimitInterval time.Durat
 			tableName := meta.Name()
 			cleaningTimes[tableName].Start()
 			for _, key := range deadObjs {
-				oldObj, existed := txn.mustIndexWriteTxn(tableName, GraveyardRevisionIndex).txn.Delete(key)
+				oldObj, existed := txn.mustIndexWriteTxn(tableName, GraveyardRevisionIndex).Delete(key)
 				if existed {
 					// The dead object still existed (and wasn't replaced by a create->delete),
 					// delete it from the primary index.
 					key = meta.primaryIndexer().fromObject(oldObj).First()
-					txn.mustIndexWriteTxn(tableName, GraveyardIndex).txn.Delete(key)
+					txn.mustIndexWriteTxn(tableName, GraveyardIndex).Delete(key)
 				}
 			}
 			cleaningTimes[tableName].End(true)

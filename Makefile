@@ -734,7 +734,7 @@ kind-egressgw-install-cilium: kind-ready ## Install a local Cilium version into 
 		--chart-directory=$(ROOT_DIR)/install/kubernetes/cilium \
 		$(KIND_VALUES_FILES) \
 		--helm-values=$(ROOT_DIR)/contrib/testing/kind-egressgw-values.yaml \
-		--nodes-without-cilium=kind-worker3 \
+		--nodes-without-cilium \
 		--version= \
 		>/dev/null 2>&1 &
 
@@ -817,6 +817,8 @@ endif
 	$(QUIET) contrib/scripts/rand-check.sh
 	@$(ECHO_CHECK) contrib/scripts/check-time.sh
 	$(QUIET) contrib/scripts/check-time.sh
+	@$(ECHO_CHECK) contrib/scripts/check-go-testdata.sh
+	$(QUIET) contrib/scripts/check-go-testdata.sh
 
 check-sources:
 	@$(ECHO_CHECK) pkg/datapath/loader/check-sources.sh
@@ -889,11 +891,11 @@ help: ## Display help for the Makefile, from https://www.thapaliya.com/en/writin
 .PHONY: help clean clean-container dev-doctor force generate-api generate-health-api generate-operator-api generate-hubble-api install licenses-all veryclean check-sources
 force :;
 
-# this top level run_bpf_tests target will run the bpf unit tests inside the Cilium Builder container.
-# it exists here so the entire source code repo can be mounted into the container.
-CILIUM_BUILDER_IMAGE=$(shell cat images/cilium/Dockerfile | grep "ARG CILIUM_BUILDER_IMAGE=" | cut -d"=" -f2)
-run_bpf_tests:
-	docker run -v $$(pwd):/src --privileged -w /src -e RUN_WITH_SUDO=false $(CILIUM_BUILDER_IMAGE) "make" "-C" "test/" "run_bpf_tests"
+run_bpf_tests: ## Build and run the BPF unit tests using the cilium-builder container image.
+	docker run --rm --privileged \
+		-v $$(pwd):/src -w /src \
+		$(CILIUM_BUILDER_IMAGE) \
+		"make" "-j$(shell nproc)" "-C" "bpf/tests/" "all" "run"
 
-run-builder:
+run-builder: ## Drop into a shell inside a container running the cilium-builder image.
 	docker run -it --rm -v $$(pwd):/go/src/github.com/cilium/cilium $(CILIUM_BUILDER_IMAGE) bash

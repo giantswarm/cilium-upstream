@@ -19,6 +19,7 @@ import (
 	"github.com/sirupsen/logrus"
 
 	operatorOption "github.com/cilium/cilium/operator/option"
+	"github.com/cilium/cilium/pkg/aws/ec2"
 	"github.com/cilium/cilium/pkg/aws/eni/limits"
 	eniTypes "github.com/cilium/cilium/pkg/aws/eni/types"
 	"github.com/cilium/cilium/pkg/defaults"
@@ -39,9 +40,6 @@ const (
 
 	getMaximumAllocatableIPv4FailureWarningStr = "maximum allocatable ipv4 addresses will be 0 (unlimited)" +
 		" this could lead to ip allocation overflows if the max-allocate flag is not set"
-
-	// insufficientPrefixesInSubnetStr AWS error code for insufficient /28 prefixes in a subnet
-	insufficientPrefixesInSubnetStr = "InsufficientCidrBlocks"
 )
 
 type ipamNodeActions interface {
@@ -266,7 +264,9 @@ func (n *Node) PrepareIPAllocation(scopedLog *logrus.Entry) (a *ipam.AllocationA
 func isSubnetAtPrefixCapacity(err error) bool {
 	var apiErr smithy.APIError
 	if errors.As(err, &apiErr) {
-		return apiErr.ErrorCode() == insufficientPrefixesInSubnetStr
+		return apiErr.ErrorCode() == ec2.InsufficientPrefixesInSubnetStr ||
+			(apiErr.ErrorCode() == ec2.InvalidParameterValueStr &&
+				strings.Contains(apiErr.ErrorMessage(), ec2.SubnetFullErrMsgStr))
 	}
 	return false
 }
@@ -352,7 +352,8 @@ func (n *Node) errorInstanceNotRunning(err error) (notRunning bool) {
 func isAttachmentIndexConflict(err error) bool {
 	var apiErr smithy.APIError
 	if errors.As(err, &apiErr) {
-		return apiErr.ErrorCode() == "InvalidParameterValue" && strings.Contains(apiErr.ErrorMessage(), "interface attached at device")
+		return apiErr.ErrorCode() == ec2.InvalidParameterValueStr &&
+			strings.Contains(apiErr.ErrorMessage(), "interface attached at device")
 	}
 	return false
 }
@@ -430,7 +431,7 @@ func (n *Node) CreateInterface(ctx context.Context, allocation *ipam.AllocationA
 	if err != nil {
 		return 0,
 			unableToGetSecurityGroups,
-			fmt.Errorf("%s %s", errUnableToGetSecurityGroups, err)
+			fmt.Errorf("%s: %w", errUnableToGetSecurityGroups, err)
 	}
 
 	desc := "Cilium-CNI (" + n.node.InstanceID() + ")"
@@ -461,7 +462,7 @@ func (n *Node) CreateInterface(ctx context.Context, allocation *ipam.AllocationA
 			eniID, eni, err = n.manager.api.CreateNetworkInterface(ctx, int32(toAllocate), subnet.ID, desc, securityGroupIDs, false)
 		}
 		if err != nil {
-			return 0, unableToCreateENI, fmt.Errorf("%s %s", errUnableToCreateENI, err)
+			return 0, unableToCreateENI, fmt.Errorf("%s: %w", errUnableToCreateENI, err)
 		}
 	}
 
@@ -498,7 +499,7 @@ func (n *Node) CreateInterface(ctx context.Context, allocation *ipam.AllocationA
 
 		return 0,
 			unableToAttachENI,
-			fmt.Errorf("%s at index %d: %s", errUnableToAttachENI, index, err)
+			fmt.Errorf("%s at index %d: %w", errUnableToAttachENI, index, err)
 	}
 
 	scopedLog = scopedLog.WithFields(logrus.Fields{
@@ -524,7 +525,7 @@ func (n *Node) CreateInterface(ctx context.Context, allocation *ipam.AllocationA
 				return toAllocate, "", nil
 			}
 
-			return 0, unableToMarkENIForDeletion, fmt.Errorf("unable to mark ENI for deletion on termination: %s", err)
+			return 0, unableToMarkENIForDeletion, fmt.Errorf("unable to mark ENI for deletion on termination: %w", err)
 		}
 	}
 

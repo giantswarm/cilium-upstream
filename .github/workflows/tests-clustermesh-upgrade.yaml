@@ -55,10 +55,6 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  # renovate: datasource=github-releases depName=kubernetes-sigs/kind
-  kind_version: v0.20.0
-  # renovate: datasource=docker depName=quay.io/cilium/kindest-node
-  k8s_version: v1.29.0-rc.1
   cilium_cli_ci_version:
 
   clusterName1: cluster1
@@ -73,7 +69,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Set initial commit status
-        uses: myrotvorets/set-commit-status-action@38f3f27c7d52fb381273e95542f07f0fba301307 # v2.0.0
+        uses: myrotvorets/set-commit-status-action@3730c0a348a2ace3c110851bed53331bc6406e9f # v2.0.1
         with:
           sha: ${{ inputs.SHA || github.sha }}
 
@@ -138,24 +134,32 @@ jobs:
       - name: Set up job variables
         id: vars
         run: |
-          CILIUM_DOWNGRADE_VERSION=$(contrib/scripts/print-downgrade-version.sh)
+          CILIUM_DOWNGRADE_VERSION=$(contrib/scripts/print-downgrade-version.sh stable)
           echo "downgrade_version=${CILIUM_DOWNGRADE_VERSION}" >> $GITHUB_OUTPUT
 
-          # * Hubble is disabled to avoid the performance penalty in the testing
-          #   environment due to the relatively high traffic load.
+          # * Monitor aggregation is set to medium to avoid the performance penalty
+          #   in the testing environment due to the relatively high traffic load.
+          # * We explicitly configure the IPAM mode to prevent it from being
+          #   reset to the default value on upgrade/downgrade due to --reset-values.
           # * We explicitly configure the sync timeout to a higher value to
           #   give enough time to the clustermesh-apiserver to restart after
           #   the upgrade/downgrade before that agents regenerate the endpoints.
+          # * We configure the maximum number of unavailable agents to 1 to slow
+          #   down the rollout process and highlight possible connection disruption
+          #   occurring in the meanwhile.
           CILIUM_INSTALL_DEFAULTS=" \
             --set=debug.enabled=true \
-            --set=bpf.monitorAggregation=none \
-            --set=hubble.enabled=false \
+            --set=bpf.monitorAggregation=medium \
+            --set=hubble.enabled=true \
             --set=routingMode=tunnel \
             --set=tunnelProtocol=vxlan \
             --set=ipv4.enabled=true \
             --set=ipv6.enabled=true \
             --set=kubeProxyReplacement=${{ matrix.kube-proxy == 'none' }} \
             --set=bpf.masquerade=${{ matrix.kube-proxy == 'none' }} \
+            --set=ipam.mode=kubernetes \
+            --set=operator.replicas=1 \
+            --set=updateStrategy.rollingUpdate.maxUnavailable=1 \
             --set=clustermesh.useAPIServer=${{ !matrix.external-kvstore }} \
             --set=clustermesh.config.enabled=true \
             --set=extraConfig.clustermesh-ip-identities-sync-timeout=10m"
@@ -172,7 +176,7 @@ jobs:
             --test='allow-all-except-world/' \
             --test='client-ingress/' \
             --test='client-egress/' \
-            --test='cluster-entity-multicluster/' \
+            --test='cluster-entity-multi-cluster/' \
             --test='!/pod-to-world' \
             --test='!/pod-to-cidr' \
             --collect-sysdump-on-failure"
@@ -188,7 +192,7 @@ jobs:
           echo "connectivity_test_defaults=${CONNECTIVITY_TEST_DEFAULTS}" >> $GITHUB_OUTPUT
 
       - name: Install Cilium CLI
-        uses: cilium/cilium-cli@b0955d62f5d0fd22449c568c6be921f46b66f603 # v0.15.22
+        uses: cilium/cilium-cli@a9579d1afc528b085930c5237a69ee77b2c2be76 # v0.16.4
         with:
           repository: ${{ env.CILIUM_CLI_RELEASE_REPO }}
           release-version: ${{ env.CILIUM_CLI_VERSION }}
@@ -196,35 +200,35 @@ jobs:
 
       - name: Generate Kind configuration files
         run: |
-          K8S_VERSION=${{ env.k8s_version }} \
-            PODCIDR=10.242.0.0/16,fd00:10:242::/48 \
+          PODCIDR=10.242.0.0/16,fd00:10:242::/48 \
             SVCCIDR=10.243.0.0/16,fd00:10:243::/112 \
             IPFAMILY=dual \
             KUBEPROXYMODE=${{ matrix.kube-proxy }} \
             envsubst < ./.github/kind-config.yaml.tmpl > ./.github/kind-config-cluster1.yaml
 
-          K8S_VERSION=${{ env.k8s_version }} \
-            PODCIDR=10.244.0.0/16,fd00:10:244::/48 \
+          PODCIDR=10.244.0.0/16,fd00:10:244::/48 \
             SVCCIDR=10.245.0.0/16,fd00:10:245::/112 \
             IPFAMILY=dual \
             KUBEPROXYMODE=${{ matrix.kube-proxy }} \
             envsubst < ./.github/kind-config.yaml.tmpl > ./.github/kind-config-cluster2.yaml
 
       - name: Create Kind cluster 1
-        uses: helm/kind-action@dda0770415bac9fc20092cacbc54aa298604d140 # v1.8.0
+        uses: helm/kind-action@99576bfa6ddf9a8e612d83b513da5a75875caced # v1.9.0
         with:
           cluster_name: ${{ env.clusterName1 }}
-          version: ${{ env.kind_version }}
-          kubectl_version: ${{ env.k8s_version }}
+          version: ${{ env.KIND_VERSION }}
+          node_image: ${{ env.KIND_K8S_IMAGE }}
+          kubectl_version: ${{ env.KIND_K8S_VERSION }}
           config: ./.github/kind-config-cluster1.yaml
           wait: 0 # The control-plane never becomes ready, since no CNI is present
 
       - name: Create Kind cluster 2
-        uses: helm/kind-action@dda0770415bac9fc20092cacbc54aa298604d140 # v1.8.0
+        uses: helm/kind-action@99576bfa6ddf9a8e612d83b513da5a75875caced # v1.9.0
         with:
           cluster_name: ${{ env.clusterName2 }}
-          version: ${{ env.kind_version }}
-          kubectl_version: ${{ env.k8s_version }}
+          version: ${{ env.KIND_VERSION }}
+          node_image: ${{ env.KIND_K8S_IMAGE }}
+          kubectl_version: ${{ env.KIND_K8S_VERSION }}
           config: ./.github/kind-config-cluster2.yaml
           wait: 0 # The control-plane never becomes ready, since no CNI is present
 
@@ -354,7 +358,7 @@ jobs:
         timeout-minutes: 10
         shell: bash
         run: |
-          for image in cilium-ci operator-generic-ci hubble-relay-ci clustermesh-apiserver-ci ; do
+          for image in cilium-ci operator-generic-ci clustermesh-apiserver-ci ; do
             until docker manifest inspect quay.io/${{ env.QUAY_ORGANIZATION_DEV }}/$image:${{ steps.newest-vars.outputs.sha }} &> /dev/null; do sleep 45s; done
           done
 
@@ -362,7 +366,7 @@ jobs:
         timeout-minutes: 10
         shell: bash
         run: |
-          for image in cilium-ci operator-generic-ci hubble-relay-ci clustermesh-apiserver-ci ; do
+          for image in cilium-ci operator-generic-ci clustermesh-apiserver-ci ; do
             until docker manifest inspect quay.io/${{ env.QUAY_ORGANIZATION_DEV }}/$image:${{ steps.downgrade-vars.outputs.sha }} &> /dev/null; do sleep 45s; done
           done
 
@@ -621,14 +625,14 @@ jobs:
 
       - name: Upload artifacts
         if: ${{ !success() }}
-        uses: actions/upload-artifact@26f96dfa697d77e81fd5907df203aa23a56210a8 # v4.3.0
+        uses: actions/upload-artifact@1746f4ab65b179e0ea60a494b83293b640dd5bba # v4.3.2
         with:
           name: cilium-sysdumps-${{ matrix.name }}
           path: cilium-sysdump-*.zip
 
       - name: Upload JUnits [junit]
         if: ${{ always() }}
-        uses: actions/upload-artifact@26f96dfa697d77e81fd5907df203aa23a56210a8 # v4.3.0
+        uses: actions/upload-artifact@1746f4ab65b179e0ea60a494b83293b640dd5bba # v4.3.2
         with:
           name: cilium-junits-${{ matrix.name }}
           path: cilium-junits/*.xml
@@ -647,7 +651,7 @@ jobs:
     steps:
       - name: Merge Sysdumps
         if: ${{ needs.upgrade-and-downgrade.result == 'failure' }}
-        uses: actions/upload-artifact/merge@26f96dfa697d77e81fd5907df203aa23a56210a8 # v4.3.0
+        uses: actions/upload-artifact/merge@1746f4ab65b179e0ea60a494b83293b640dd5bba # v4.3.2
         with:
           name: cilium-sysdumps
           pattern: cilium-sysdumps-*
@@ -655,7 +659,7 @@ jobs:
           delete-merged: true
         continue-on-error: true
       - name: Merge JUnits
-        uses: actions/upload-artifact/merge@26f96dfa697d77e81fd5907df203aa23a56210a8 # v4.3.0
+        uses: actions/upload-artifact/merge@1746f4ab65b179e0ea60a494b83293b640dd5bba # v4.3.2
         with:
           name: cilium-junits
           pattern: cilium-junits-*
@@ -669,7 +673,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Set final commit status
-        uses: myrotvorets/set-commit-status-action@38f3f27c7d52fb381273e95542f07f0fba301307 # v2.0.0
+        uses: myrotvorets/set-commit-status-action@3730c0a348a2ace3c110851bed53331bc6406e9f # v2.0.1
         with:
           sha: ${{ inputs.SHA || github.sha }}
           status: ${{ needs.upgrade-and-downgrade.result }}

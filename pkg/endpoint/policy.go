@@ -90,17 +90,24 @@ func (e *Endpoint) getNamedPortEgress(npMap types.NamedPortMultiMap, name string
 }
 
 // proxyID returns a unique string to identify a proxy mapping,
-// and the resolved destination port number, if any.
+// and the resolved destination port and protocol numbers, if any.
 // Must be called with e.mutex held.
-func (e *Endpoint) proxyID(l4 *policy.L4Filter) (string, uint16) {
+func (e *Endpoint) proxyID(l4 *policy.L4Filter) (string, uint16, uint8) {
 	port := uint16(l4.Port)
+	protocol := uint8(l4.U8Proto)
+	// Calculate protocol if it is 0 (default) and
+	// is not "ANY" (that is, it was not calculated).
+	if protocol == 0 && !l4.Protocol.IsAny() {
+		proto, _ := u8proto.ParseProtocol(string(l4.Protocol))
+		protocol = uint8(proto)
+	}
 	if port == 0 && l4.PortName != "" {
-		port = e.GetNamedPort(l4.Ingress, l4.PortName, uint8(l4.U8Proto))
+		port = e.GetNamedPort(l4.Ingress, l4.PortName, protocol)
 		if port == 0 {
-			return "", 0
+			return "", 0, 0
 		}
 	}
-	return policy.ProxyID(e.ID, l4.Ingress, string(l4.Protocol), port), port
+	return policy.ProxyID(e.ID, l4.Ingress, string(l4.Protocol), port), port, protocol
 }
 
 // LookupRedirectPortBuildLocked returns the redirect L4 proxy port for the given L4
@@ -441,13 +448,13 @@ func (e *Endpoint) regenerate(ctx *regenerationContext) (retErr error) {
 	// over to make sure we can start the build from scratch
 	if err := e.removeDirectory(tmpDir); err != nil && !os.IsNotExist(err) {
 		stats.prepareBuild.End(false)
-		return fmt.Errorf("unable to remove old temporary directory: %s", err)
+		return fmt.Errorf("unable to remove old temporary directory: %w", err)
 	}
 
 	// Create temporary endpoint directory if it does not exist yet
 	if err := os.MkdirAll(tmpDir, 0777); err != nil {
 		stats.prepareBuild.End(false)
-		return fmt.Errorf("Failed to create endpoint directory: %s", err)
+		return fmt.Errorf("Failed to create endpoint directory: %w", err)
 	}
 
 	stats.prepareBuild.End(true)
@@ -530,7 +537,7 @@ func (e *Endpoint) updateRealizedState(stats *regenerationStatistics, origDir st
 	// results.
 	err = e.synchronizeDirectories(origDir, stateDirComplete)
 	if err != nil {
-		return fmt.Errorf("error synchronizing endpoint BPF program directories: %s", err)
+		return fmt.Errorf("error synchronizing endpoint BPF program directories: %w", err)
 	}
 
 	// Start periodic background full reconciliation of the policy map.
@@ -842,14 +849,14 @@ func (e *Endpoint) runIPIdentitySync(endpointIP netip.Addr) {
 				e.runlock()
 
 				if err := ipcache.UpsertIPToKVStore(ctx, endpointIP, hostIP, ID, key, metadata, k8sNamespace, k8sPodName, e.GetK8sPorts()); err != nil {
-					return fmt.Errorf("unable to add endpoint IP mapping '%s'->'%d': %s", endpointIP.String(), ID, err)
+					return fmt.Errorf("unable to add endpoint IP mapping '%s'->'%d': %w", endpointIP.String(), ID, err)
 				}
 				return nil
 			},
 			StopFunc: func(ctx context.Context) error {
 				ip := endpointIP.String()
 				if err := ipcache.DeleteIPFromKVStore(ctx, ip); err != nil {
-					return fmt.Errorf("unable to delete endpoint IP '%s' from ipcache: %s", ip, err)
+					return fmt.Errorf("unable to delete endpoint IP '%s' from ipcache: %w", ip, err)
 				}
 				return nil
 			},

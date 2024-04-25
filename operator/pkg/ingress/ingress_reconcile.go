@@ -4,8 +4,10 @@
 package ingress
 
 import (
+	"cmp"
 	"context"
 	"fmt"
+	"slices"
 	"strings"
 
 	"github.com/sirupsen/logrus"
@@ -84,6 +86,15 @@ func (r *ingressReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 	if r.isEffectiveLoadbalancerModeDedicated(ingress) {
 		scopedLog.Debug("Updating dedicated resources")
 		if err := r.createOrUpdateDedicatedResources(ctx, ingress); err != nil {
+			if k8serrors.IsForbidden(err) && k8serrors.HasStatusCause(err, corev1.NamespaceTerminatingCause) {
+				// The creation of one of the resources failed because the
+				// namespace is terminating. The ingress itself is also expected
+				// to be marked for deletion, but we haven't yet received the
+				// corresponding event, so let's not print an error message.
+				scopedLog.Info("Aborting reconciliation because namespace is being terminated")
+				return controllerruntime.Success()
+			}
+
 			return controllerruntime.Fail(err)
 		}
 
@@ -200,7 +211,12 @@ func (r *ingressReconciler) buildSharedResources(ctx context.Context) (*ciliumv2
 	}
 
 	m := &model.Model{}
-	for _, item := range ingressList.Items {
+	allSharedIngresses := ingressList.Items
+	slices.SortStableFunc(allSharedIngresses, func(a, b networkingv1.Ingress) int {
+		return cmp.Compare(a.Namespace+"/"+a.Name, b.Namespace+"/"+b.Name)
+	})
+
+	for _, item := range allSharedIngresses {
 		if !isCiliumManagedIngress(ctx, r.client, r.logger, item) || r.isEffectiveLoadbalancerModeDedicated(&item) || item.GetDeletionTimestamp() != nil {
 			continue
 		}

@@ -442,6 +442,9 @@ func (p *Proxy) ReinstallRoutingRules() error {
 			return err
 		}
 	}
+	if err := removeStaleProxyRulesIPv4(); err != nil {
+		return err
+	}
 
 	if option.Config.EnableIPv6 {
 		if err := installToProxyRoutesIPv6(); err != nil {
@@ -468,6 +471,9 @@ func (p *Proxy) ReinstallRoutingRules() error {
 		if err := removeFromProxyRoutesIPv6(); err != nil {
 			return err
 		}
+	}
+	if err := removeStaleProxyRulesIPv6(); err != nil {
+		return err
 	}
 
 	return nil
@@ -602,7 +608,7 @@ func (p *Proxy) createNewRedirect(
 		return 0, proxyTypeNotFoundError(types.ProxyType(l4.GetL7Parser()), l4.GetListener(), l4.GetIngress()), nil, nil
 	}
 
-	redirect := newRedirect(localEndpoint, ppName, pp, l4.GetPort())
+	redirect := newRedirect(localEndpoint, ppName, pp, l4.GetPort(), l4.GetProtocol())
 	_ = redirect.updateRules(l4) // revertFunc not used because revert will remove whole redirect
 	// Rely on create*Redirect to update rules, unlike the update case above.
 

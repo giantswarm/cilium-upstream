@@ -425,12 +425,15 @@ func (p *Proxy) ReinstallRoutingRules() error {
 			return err
 		}
 
-		if !option.Config.EnableIPSec || option.Config.TunnelingEnabled() {
-			if err := removeFromProxyRoutesIPv4(); err != nil {
+		if err := removeFromEgressProxyRoutesIPv4(); err != nil {
+			return err
+		}
+		if requireFromProxyRoutes() {
+			if err := installFromProxyRoutesIPv4(node.GetInternalIPv4Router(), defaults.HostDevice); err != nil {
 				return err
 			}
 		} else {
-			if err := installFromProxyRoutesIPv4(node.GetInternalIPv4Router(), defaults.HostDevice); err != nil {
+			if err := removeFromIngressProxyRoutesIPv4(); err != nil {
 				return err
 			}
 		}
@@ -438,7 +441,7 @@ func (p *Proxy) ReinstallRoutingRules() error {
 		if err := removeToProxyRoutesIPv4(); err != nil {
 			return err
 		}
-		if err := removeFromProxyRoutesIPv4(); err != nil {
+		if err := removeFromIngressProxyRoutesIPv4(); err != nil {
 			return err
 		}
 	}
@@ -451,11 +454,10 @@ func (p *Proxy) ReinstallRoutingRules() error {
 			return err
 		}
 
-		if !option.Config.EnableIPSec || option.Config.TunnelingEnabled() {
-			if err := removeFromProxyRoutesIPv6(); err != nil {
-				return err
-			}
-		} else {
+		if err := removeFromEgressProxyRoutesIPv6(); err != nil {
+			return err
+		}
+		if requireFromProxyRoutes() {
 			ipv6, err := getCiliumNetIPv6()
 			if err != nil {
 				return err
@@ -463,12 +465,16 @@ func (p *Proxy) ReinstallRoutingRules() error {
 			if err := installFromProxyRoutesIPv6(ipv6, defaults.HostDevice); err != nil {
 				return err
 			}
+		} else {
+			if err := removeFromIngressProxyRoutesIPv6(); err != nil {
+				return err
+			}
 		}
 	} else {
 		if err := removeToProxyRoutesIPv6(); err != nil {
 			return err
 		}
-		if err := removeFromProxyRoutesIPv6(); err != nil {
+		if err := removeFromIngressProxyRoutesIPv6(); err != nil {
 			return err
 		}
 	}
@@ -477,6 +483,10 @@ func (p *Proxy) ReinstallRoutingRules() error {
 	}
 
 	return nil
+}
+
+func requireFromProxyRoutes() bool {
+	return (option.Config.EnableEnvoyConfig || option.Config.EnableIPSec) && !option.Config.TunnelingEnabled()
 }
 
 // getCiliumNetIPv6 retrieves the first IPv6 address from the cilium_net device.

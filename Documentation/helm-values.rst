@@ -487,7 +487,7 @@
    * - :spelling:ignore:`clustermesh.apiserver.image`
      - Clustermesh API server image.
      - object
-     - ``{"digest":"sha256:3fadf85d2aa0ecec09152e7e2d57648bda7e35bdc161b25ab54066dd4c3b299c","override":null,"pullPolicy":"IfNotPresent","repository":"quay.io/cilium/clustermesh-apiserver","tag":"v1.15.4","useDigest":true}``
+     - ``{"digest":"sha256:914549caf4376a844b5e7696019182dd2a655b89d6a3cad10f9d0f9821759fd7","override":null,"pullPolicy":"IfNotPresent","repository":"quay.io/cilium/clustermesh-apiserver","tag":"v1.15.5","useDigest":true}``
    * - :spelling:ignore:`clustermesh.apiserver.kvstoremesh.enabled`
      - Enable KVStoreMesh. KVStoreMesh caches the information retrieved from the remote clusters in the local etcd instance.
      - bool
@@ -1139,7 +1139,7 @@
    * - :spelling:ignore:`envoy.image`
      - Envoy container image.
      - object
-     - ``{"digest":"sha256:a161bc0ab3d7832eeb4d7ab8ce13d151a5baf1adf62fc23980a35580df8c22c0","override":null,"pullPolicy":"IfNotPresent","repository":"quay.io/cilium/cilium-envoy","tag":"v1.27.5-4fd4e4cca980b620e318f89bf257cbda75178199","useDigest":true}``
+     - ``{"digest":"sha256:bc8dcc3bc008e3a5aab98edb73a0985e6ef9469bda49d5bb3004c001c995c380","override":null,"pullPolicy":"IfNotPresent","repository":"quay.io/cilium/cilium-envoy","tag":"v1.28.3-31ec52ec5f2e4d28a8e19a0bfb872fa48cf7a515","useDigest":true}``
    * - :spelling:ignore:`envoy.livenessProbe.failureThreshold`
      - failure threshold of liveness probe
      - int
@@ -1179,7 +1179,11 @@
    * - :spelling:ignore:`envoy.podSecurityContext`
      - Security Context for cilium-envoy pods.
      - object
-     - ``{}``
+     - ``{"appArmorProfile":{"type":"Unconfined"}}``
+   * - :spelling:ignore:`envoy.podSecurityContext.appArmorProfile`
+     - AppArmorProfile options for the ``cilium-agent`` and init containers
+     - object
+     - ``{"type":"Unconfined"}``
    * - :spelling:ignore:`envoy.priorityClassName`
      - The priority class to use for cilium-envoy.
      - string
@@ -1268,6 +1272,14 @@
      - cilium-envoy update strategy ref: https://kubernetes.io/docs/concepts/workloads/controllers/daemonset/#updating-a-daemonset
      - object
      - ``{"rollingUpdate":{"maxUnavailable":2},"type":"RollingUpdate"}``
+   * - :spelling:ignore:`envoy.xffNumTrustedHopsL7PolicyEgress`
+     - Number of trusted hops regarding the x-forwarded-for and related HTTP headers for the egress L7 policy enforcement Envoy listeners.
+     - int
+     - ``0``
+   * - :spelling:ignore:`envoy.xffNumTrustedHopsL7PolicyIngress`
+     - Number of trusted hops regarding the x-forwarded-for and related HTTP headers for the ingress L7 policy enforcement Envoy listeners.
+     - int
+     - ``0``
    * - :spelling:ignore:`envoyConfig.enabled`
      - Enable CiliumEnvoyConfig CRD CiliumEnvoyConfig CRD can also be implicitly enabled by other options.
      - bool
@@ -1639,7 +1651,7 @@
    * - :spelling:ignore:`hubble.relay.image`
      - Hubble-relay container image.
      - object
-     - ``{"digest":"sha256:03ad857feaf52f1b4774c29614f42a50b370680eb7d0bfbc1ae065df84b1070a","override":null,"pullPolicy":"IfNotPresent","repository":"quay.io/cilium/hubble-relay","tag":"v1.15.4","useDigest":true}``
+     - ``{"digest":"sha256:1d24b24e3477ccf9b5ad081827db635419c136a2bd84a3e60f37b26a38dd0781","override":null,"pullPolicy":"IfNotPresent","repository":"quay.io/cilium/hubble-relay","tag":"v1.15.5","useDigest":true}``
    * - :spelling:ignore:`hubble.relay.listenHost`
      - Host to listen to. Specify an empty string to bind to all the interfaces.
      - string
@@ -2019,7 +2031,7 @@
    * - :spelling:ignore:`image`
      - Agent container image.
      - object
-     - ``{"digest":"sha256:b760a4831f5aab71c711f7537a107b751d0d0ce90dd32d8b358df3c5da385426","override":null,"pullPolicy":"IfNotPresent","repository":"quay.io/cilium/cilium","tag":"v1.15.4","useDigest":true}``
+     - ``{"digest":"sha256:4ce1666a73815101ec9a4d360af6c5b7f1193ab00d89b7124f8505dee147ca40","override":null,"pullPolicy":"IfNotPresent","repository":"quay.io/cilium/cilium","tag":"v1.15.5","useDigest":true}``
    * - :spelling:ignore:`imagePullSecrets`
      - Configure image pull secrets for pulling container images
      - string
@@ -2375,7 +2387,7 @@
    * - :spelling:ignore:`nodeinit.image`
      - node-init image.
      - object
-     - ``{"digest":"sha256:e1d442546e868db1a3289166c14011e0dbd32115b338b963e56f830972bc22a2","override":null,"pullPolicy":"IfNotPresent","repository":"quay.io/cilium/startup-script","tag":"62093c5c233ea914bfa26a10ba41f8780d9b737f","useDigest":true}``
+     - ``{"digest":"sha256:820155cb3b7f00c8d61c1cffa68c44440906cb046bdbad8ff544f5deb1103456","override":null,"pullPolicy":"IfNotPresent","repository":"quay.io/cilium/startup-script","tag":"19fb149fb3d5c7a37d3edfaf10a2be3ab7386661","useDigest":true}``
    * - :spelling:ignore:`nodeinit.nodeSelector`
      - Node labels for nodeinit pod assignment ref: https://kubernetes.io/docs/concepts/scheduling-eviction/assign-pod-node/#nodeselector
      - object
@@ -2388,6 +2400,14 @@
      - Labels to be added to node-init pods.
      - object
      - ``{}``
+   * - :spelling:ignore:`nodeinit.podSecurityContext`
+     - Security Context for cilium-node-init pods.
+     - object
+     - ``{"appArmorProfile":{"type":"Unconfined"}}``
+   * - :spelling:ignore:`nodeinit.podSecurityContext.appArmorProfile`
+     - AppArmorProfile options for the ``cilium-node-init`` and init containers
+     - object
+     - ``{"type":"Unconfined"}``
    * - :spelling:ignore:`nodeinit.prestop`
      - prestop offers way to customize prestop nodeinit script (pre and post position)
      - object
@@ -2471,7 +2491,7 @@
    * - :spelling:ignore:`operator.image`
      - cilium-operator image.
      - object
-     - ``{"alibabacloudDigest":"sha256:7c0e5346483a517e18a8951f4d4399337fb47020f2d9225e2ceaa8c5d9a45a5f","awsDigest":"sha256:8675486ce8938333390c37302af162ebd12aaebc08eeeaf383bfb73128143fa9","azureDigest":"sha256:4c1a31502931681fa18a41ead2a3904b97d47172a92b7a7b205026bd1e715207","genericDigest":"sha256:404890a83cca3f28829eb7e54c1564bb6904708cdb7be04ebe69c2b60f164e9a","override":null,"pullPolicy":"IfNotPresent","repository":"quay.io/cilium/operator","suffix":"","tag":"v1.15.4","useDigest":true}``
+     - ``{"alibabacloudDigest":"sha256:d76d45e308f23398b786f1f05504863759849046c20c741ebb64ad80613f8fd3","awsDigest":"sha256:f9c0eaea023ce5a75b3ed1fc4b783f390c5a3c7dc1507a2dc4dbc667b80d1bd9","azureDigest":"sha256:0a56f2cfdcdf13da21b7fdcc870e29fef82e71e599cd8dd74eb65c377e035522","genericDigest":"sha256:f5d3d19754074ca052be6aac5d1ffb1de1eb5f2d947222b5f10f6d97ad4383e8","override":null,"pullPolicy":"IfNotPresent","repository":"quay.io/cilium/operator","suffix":"","tag":"v1.15.5","useDigest":true}``
    * - :spelling:ignore:`operator.nodeGCInterval`
      - Interval for cilium node garbage collection.
      - string
@@ -2623,7 +2643,11 @@
    * - :spelling:ignore:`podSecurityContext`
      - Security Context for cilium-agent pods.
      - object
-     - ``{}``
+     - ``{"appArmorProfile":{"type":"Unconfined"}}``
+   * - :spelling:ignore:`podSecurityContext.appArmorProfile`
+     - AppArmorProfile options for the ``cilium-agent`` and init containers
+     - object
+     - ``{"type":"Unconfined"}``
    * - :spelling:ignore:`policyCIDRMatchMode`
      - policyCIDRMatchMode is a list of entities that may be selected by CIDR selector. The possible value is "nodes".
      - string
@@ -2671,7 +2695,7 @@
    * - :spelling:ignore:`preflight.image`
      - Cilium pre-flight image.
      - object
-     - ``{"digest":"sha256:b760a4831f5aab71c711f7537a107b751d0d0ce90dd32d8b358df3c5da385426","override":null,"pullPolicy":"IfNotPresent","repository":"quay.io/cilium/cilium","tag":"v1.15.4","useDigest":true}``
+     - ``{"digest":"sha256:4ce1666a73815101ec9a4d360af6c5b7f1193ab00d89b7124f8505dee147ca40","override":null,"pullPolicy":"IfNotPresent","repository":"quay.io/cilium/cilium","tag":"v1.15.5","useDigest":true}``
    * - :spelling:ignore:`preflight.nodeSelector`
      - Node labels for preflight pod assignment ref: https://kubernetes.io/docs/concepts/scheduling-eviction/assign-pod-node/#nodeselector
      - object

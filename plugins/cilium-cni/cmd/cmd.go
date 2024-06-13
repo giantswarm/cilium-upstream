@@ -619,6 +619,9 @@ func (cmd *Cmd) Add(args *skel.CmdArgs) (err error) {
 
 		var macAddrStr string
 		if err = netNs.Do(func(_ ns.NetNS) error {
+			if err := reserveLocalIPPorts(conf); err != nil {
+				logger.WithError(err).Warn("unable to reserve local ip ports")
+			}
 			if ipv6IsEnabled(ipam) {
 				if err := reserveLocalIPPorts(conf); err != nil {
 					logger.WithError(err).Warn("unable to reserve local ip ports")

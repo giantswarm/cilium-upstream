@@ -83,7 +83,7 @@ jobs:
 
           - name: '1'
             # renovate: datasource=docker depName=quay.io/lvh-images/kind
-            kernel: '4.19-20240417.104652'
+            kernel: '4.19-20240515.073534'
             kube-proxy: 'iptables'
             kpr: 'false'
             tunnel: 'vxlan'
@@ -96,7 +96,7 @@ jobs:
 
           - name: '2'
             # renovate: datasource=docker depName=quay.io/lvh-images/kind
-            kernel: '5.4-20240417.104652'
+            kernel: '5.4-20240515.073534'
             kube-proxy: 'iptables'
             kpr: 'false'
             tunnel: 'disabled'
@@ -109,7 +109,7 @@ jobs:
 
           - name: '3'
             # renovate: datasource=docker depName=quay.io/lvh-images/kind
-            kernel: '5.10-20240417.104652'
+            kernel: '5.10-20240515.073534'
             kube-proxy: 'iptables'
             kpr: 'false'
             tunnel: 'disabled'
@@ -123,7 +123,7 @@ jobs:
 
           - name: '4'
             # renovate: datasource=docker depName=quay.io/lvh-images/kind
-            kernel: '6.6-20240417.104652'
+            kernel: '6.6-20240515.073534'
             kube-proxy: 'iptables'
             kpr: 'false'
             tunnel: 'geneve'
@@ -137,7 +137,7 @@ jobs:
 
           - name: '5'
             # renovate: datasource=docker depName=quay.io/lvh-images/kind
-            kernel: '5.4-20240417.104652'
+            kernel: '5.4-20240515.073534'
             kube-proxy: 'iptables'
             kpr: 'false'
             tunnel: 'disabled'
@@ -151,7 +151,7 @@ jobs:
 
           - name: '6'
             # renovate: datasource=docker depName=quay.io/lvh-images/kind
-            kernel: '5.10-20240417.104652'
+            kernel: '5.10-20240515.073534'
             kube-proxy: 'iptables'
             kpr: 'false'
             tunnel: 'disabled'
@@ -167,7 +167,7 @@ jobs:
     timeout-minutes: 75
     steps:
       - name: Checkout context ref (trusted)
-        uses: actions/checkout@44c2b7a8a4ea60a981eaca3cf939b5f4305c123b # v4.1.5
+        uses: actions/checkout@a5ac7e51b41094c92402da3b24376905380afc29 # v4.1.6
         with:
           ref: ${{ inputs.context-ref || github.sha }}
           persist-credentials: false
@@ -206,7 +206,7 @@ jobs:
           misc: ${{ matrix.misc }}
 
       - name: Install Cilium CLI
-        uses: cilium/cilium-cli@13cf0683b2662c27c691f4330c2ac0f48b429ce5 # v0.16.7
+        uses: cilium/cilium-cli@d86ae1ca5755139d6ca9423b9606cb047fc8e00f # v0.16.9
         with:
           repository: ${{ env.CILIUM_CLI_RELEASE_REPO }}
           release-version: ${{ env.CILIUM_CLI_VERSION }}
@@ -235,7 +235,7 @@ jobs:
       # Warning: since this is a privileged workflow, subsequent workflow job
       # steps must take care not to execute untrusted code.
       - name: Checkout pull request branch (NOT TRUSTED)
-        uses: actions/checkout@44c2b7a8a4ea60a981eaca3cf939b5f4305c123b # v4.1.5
+        uses: actions/checkout@a5ac7e51b41094c92402da3b24376905380afc29 # v4.1.6
         with:
           ref: ${{ steps.vars.outputs.sha }}
           persist-credentials: false

@@ -518,7 +518,7 @@ bpf:
   # type: [null, integer]
   # @schema
   # -- Configure the maximum number of entries in endpoint policy map (per endpoint).
-  policyMapMax: 16384
+  policyMapMax: 65536
 
   # @schema
   # type: [null, number]

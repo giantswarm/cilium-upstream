@@ -1433,7 +1433,7 @@ hubble:
       fsGroup: 65532
     # -- hubble-relay container security context
     securityContext:
-      # readOnlyRootFilesystem: true
+      readOnlyRootFilesystem: true
       runAsNonRoot: true
       runAsUser: 65532
       runAsGroup: 65532
@@ -1596,7 +1596,17 @@ hubble:
         useDigest: true
         pullPolicy: "${PULL_POLICY}"
       # -- Hubble-ui backend security context.
-      securityContext: {}
+      securityContext:
+        allowPrivilegeEscalation: false
+        capabilities:
+          drop:
+          - ALL
+        readOnlyRootFilesystem: true
+        runAsGroup: 65532
+        runAsNonRoot: true
+        runAsUser: 65532
+        seccompProfile:
+          type: RuntimeDefault
       # -- Additional hubble-ui backend environment variables.
       extraEnv: []
       # -- Additional hubble-ui backend volumes.
@@ -1630,7 +1640,17 @@ hubble:
         useDigest: true
         pullPolicy: "${PULL_POLICY}"
       # -- Hubble-ui frontend security context.
-      securityContext: {}
+      securityContext:
+        allowPrivilegeEscalation: false
+        capabilities:
+          drop:
+          - ALL
+        readOnlyRootFilesystem: true
+        runAsGroup: 101
+        runAsNonRoot: true
+        runAsUser: 101
+        seccompProfile:
+          type: RuntimeDefault
       # -- Additional hubble-ui frontend environment variables.
       extraEnv: []
       # -- Additional hubble-ui frontend volumes.
@@ -1702,9 +1722,9 @@ hubble:
         maxUnavailable: 1
     # -- Security context to be added to Hubble UI pods
     securityContext:
-      runAsUser: 1001
-      runAsGroup: 1001
-      fsGroup: 1001
+      runAsNonRoot: true
+      seccompProfile:
+        type: RuntimeDefault
     # -- hubble-ui service configuration.
     service:
       # -- Annotations to be added for the Hubble UI service
@@ -2599,7 +2619,10 @@ operator:
   # -- HostNetwork setting
   hostNetwork: true
   # -- Security context to be added to cilium-operator pods
-  podSecurityContext: {}
+  podSecurityContext:
+    runAsNonRoot: true
+    seccompProfile:
+      type: RuntimeDefault
   # -- Annotations to be added to cilium-operator pods
   podAnnotations: {}
   # -- Labels to be added to cilium-operator pods
@@ -2631,9 +2654,17 @@ operator:
   #     memory: 128Mi
 
   # -- Security context to be added to cilium-operator pods
-  securityContext: {}
-  # runAsUser: 0
-
+  securityContext:
+    allowPrivilegeEscalation: false
+    capabilities:
+      drop:
+      - ALL
+    readOnlyRootFilesystem: true
+    runAsGroup: 65532
+    runAsNonRoot: true
+    runAsUser: 65532
+    seccompProfile:
+      type: RuntimeDefault
   # -- Interval for endpoint garbage collection.
   endpointGCInterval: "5m0s"
   # -- Interval for cilium node garbage collection.

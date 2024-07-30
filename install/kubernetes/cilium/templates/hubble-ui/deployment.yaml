@@ -44,7 +44,7 @@ spec:
     spec:
       {{- with .Values.hubble.ui.securityContext }}
       securityContext:
-        {{- omit . "enabled" | toYaml | nindent 8 }}
+        {{- toYaml | nindent 8 }}
       {{- end }}
       priorityClassName: {{ .Values.hubble.ui.priorityClassName }}
       serviceAccountName: {{ .Values.serviceAccounts.ui.name | quote }}
